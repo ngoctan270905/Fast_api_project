@@ -26,7 +26,7 @@ function Header() {
               <NavDropdown title={auth.user.username} id="basic-nav-dropdown" align="end">
                 <NavDropdown.ItemText>
                   <small className="text-muted">
-                    Logged in via: {auth.user.is_social_login ? 'Google' : 'Email'}
+                    Logged in via: {auth.user.is_social_login ? 'Social Account' : 'Email'}
                   </small>
                 </NavDropdown.ItemText>
                 <NavDropdown.Divider />
