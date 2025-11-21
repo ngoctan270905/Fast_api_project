@@ -1,0 +1,34 @@
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Environment variables - Do not commit secrets!
+.env
+.env.*
+!/.env.example
+!/library_api/.env.example
+
+# Log files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python / Backend (library_api)
+/library_api/venv/
+/library_api/**/__pycache__/
+*.pyc
+.coverage
+/media/
+
+# Node.js / Frontend
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.eslintcache
