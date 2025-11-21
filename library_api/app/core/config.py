@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
 
+    # Github OAuth Settings
+    GITHUB_CLIENT_ID: str
+    GITHUB_CLIENT_SECRET: str
+
     class Config:
         env_file = ".env"
         case_sensitive = True
