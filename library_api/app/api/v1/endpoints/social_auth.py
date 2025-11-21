@@ -33,3 +33,25 @@ async def auth_google_callback(
     # In a real app, you might use cookies or a more secure redirect flow.
     redirect_url = f"{settings.CLIENT_BASE_URL}/auth/callback?token={access_token}"
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/login/github")
+async def login_github(request: Request):
+    """
+    Redirects to GitHub's OAuth login page.
+    """
+    redirect_uri = request.url_for('auth_github_callback')
+    return await oauth.github.authorize_redirect(request, redirect_uri)
+
+@router.get("/auth/github/callback", name="auth_github_callback")
+async def auth_github_callback(
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """
+    Handles the callback from GitHub after user authentication.
+    """
+    access_token = await auth_service.handle_github_oauth(request)
+    
+    redirect_url = f"{settings.CLIENT_BASE_URL}/auth/callback?token={access_token}"
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)

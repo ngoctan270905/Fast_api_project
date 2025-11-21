@@ -76,6 +76,16 @@ function LoginPage() {
             Login with Google
           </Button>
 
+          <Button 
+            variant="outline-dark" 
+            className="w-100 mt-2" 
+            as="a" 
+            href="http://127.0.0.1:8000/api/v1/login/github"
+          >
+            <img src="https://img.icons8.com/material-outlined/16/000000/github.png" alt="GitHub logo" className="me-2"/> 
+            Login with GitHub
+          </Button>
+
         </Form>
         <p className="text-center mt-3">
           Don't have an account? <a href="/register">Register here</a>

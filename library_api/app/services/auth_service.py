@@ -58,6 +58,56 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Authentication failed: {e}"
             )
+
+    async def handle_github_oauth(self, request: Request) -> str:
+        """
+        Handles the GitHub OAuth callback, creates/updates the user, and returns a JWT.
+        """
+        try:
+            token = await oauth.github.authorize_access_token(request)
+            resp = await oauth.github.get('user', token=token)
+            resp.raise_for_status()
+            user_info = resp.json()
+
+            # GitHub may not provide a public email, so we need to check
+            email = user_info.get('email')
+            if not email:
+                # If primary email is null, fetch all user emails
+                email_resp = await oauth.github.get('user/emails', token=token)
+                email_resp.raise_for_status()
+                emails = email_resp.json()
+                primary_email_obj = next((e for e in emails if e['primary']), None)
+                if primary_email_obj:
+                    email = primary_email_obj['email']
+            
+            github_account_id = str(user_info.get('id'))
+            name = user_info.get('name') or user_info.get('login')
+
+            if not email or not github_account_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Could not retrieve essential user information from GitHub."
+                )
+
+            user = await self.user_repo.find_or_create_by_oauth(
+                provider="github",
+                account_id=github_account_id,
+                email=email,
+                username=name
+            )
+            
+            access_token = create_access_token(
+                data={"sub": str(user.id), "username": user.username}
+            )
+            
+            return access_token
+        except Exception as e:
+            # Consider logging the error
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"GitHub authentication failed: {e}"
+            )
+
     async def register(self, user_data: UserRegister) -> UserResponse:
         """
         Registers a new user, sets them as inactive, and sends a verification email.
