@@ -108,6 +108,47 @@ class AuthService:
                 detail=f"GitHub authentication failed: {e}"
             )
 
+    async def handle_facebook_oauth(self, request: Request) -> str:
+        """
+        Handles the Facebook OAuth callback, creates/updates the user, and returns a JWT.
+        """
+        try:
+            token = await oauth.facebook.authorize_access_token(request)
+            resp = await oauth.facebook.get(
+                'me?fields=id,name,email,picture',
+                token=token
+            )
+            resp.raise_for_status()
+            user_info = resp.json()
+
+            facebook_account_id = user_info.get('id')
+            email = user_info.get('email')
+            name = user_info.get('name')
+
+            if not email or not facebook_account_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Could not retrieve essential user information from Facebook."
+                )
+
+            user = await self.user_repo.find_or_create_by_oauth(
+                provider="facebook",
+                account_id=facebook_account_id,
+                email=email,
+                username=name or email.split('@')[0]
+            )
+            
+            access_token = create_access_token(
+                data={"sub": str(user.id), "username": user.username}
+            )
+            
+            return access_token
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Facebook authentication failed: {e}"
+            )
+
     async def register(self, user_data: UserRegister) -> UserResponse:
         """
         Registers a new user, sets them as inactive, and sends a verification email.
