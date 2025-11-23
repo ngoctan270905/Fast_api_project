@@ -55,3 +55,25 @@ async def auth_github_callback(
     
     redirect_url = f"{settings.CLIENT_BASE_URL}/auth/callback?token={access_token}"
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/login/facebook")
+async def login_facebook(request: Request):
+    """
+    Redirects to Facebook's OAuth login page.
+    """
+    redirect_uri = request.url_for('auth_facebook_callback')
+    return await oauth.facebook.authorize_redirect(request, redirect_uri)
+
+@router.get("/auth/facebook/callback", name="auth_facebook_callback")
+async def auth_facebook_callback(
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """
+    Handles the callback from Facebook after user authentication.
+    """
+    access_token = await auth_service.handle_facebook_oauth(request)
+    
+    redirect_url = f"{settings.CLIENT_BASE_URL}/auth/callback?token={access_token}"
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)

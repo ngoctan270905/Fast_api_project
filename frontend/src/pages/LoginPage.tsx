@@ -86,6 +86,16 @@ function LoginPage() {
             Login with GitHub
           </Button>
 
+          <Button 
+            variant="outline-primary" 
+            className="w-100 mt-2" 
+            as="a" 
+            href="http://127.0.0.1:8000/api/v1/login/facebook"
+          >
+            <img src="https://img.icons8.com/color/16/000000/facebook-new.png" alt="Facebook logo" className="me-2"/> 
+            Login with Facebook
+          </Button>
+
         </Form>
         <p className="text-center mt-3">
           Don't have an account? <a href="/register">Register here</a>

@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_ID: str
     GITHUB_CLIENT_SECRET: str
 
+    # Facebook OAuth Settings
+    FACEBOOK_CLIENT_ID: str
+    FACEBOOK_CLIENT_SECRET: str
+
     class Config:
         env_file = ".env"
         case_sensitive = True
