@@ -5,7 +5,7 @@ from sqlmodel import SQLModel # Assuming SQLModel base is needed for reflection
 
 # --- Configuration from alembic.ini ---
 # Make sure this matches the sqlalchemy.url in your alembic.ini
-DATABASE_URL = "mysql+aiomysql://root:1@localhost:3308/library_db"
+DATABASE_URL = "mysql+aiomysql://root:1@192.168.6.181:3308/library_db"
 # If you used mysql+pymysql, change to that. For this check, we'll use aiomysql if possible
 # If the async engine fails, you might need to use a synchronous one for this simple check.
 # For simplicity, we'll use the async one.

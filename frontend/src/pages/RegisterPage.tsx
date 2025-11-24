@@ -25,7 +25,7 @@ function RegisterPage() {
     }
 
     try {
-      const response = await authService.register(username, email, password);
+      await authService.register(username, email, password);
       // Assuming successful registration
       setMessage('Registration successful! Please check your email for verification.');
       // Optionally redirect to login after a short delay

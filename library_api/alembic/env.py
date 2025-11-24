@@ -11,11 +11,21 @@ from app.models.category import Category
 from app.models.users import User
 import os
 from dotenv import load_dotenv
+
+# Load .env file
 load_dotenv()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# Get the database URL from environment variable and set it in the config
+# We use DATABASE_URL_SYNC for synchronous operations like migrations
+db_url = os.getenv("DATABASE_URL_SYNC")
+if not db_url:
+    raise ValueError("DATABASE_URL_SYNC is not set in the environment variables.")
+config.set_main_option("sqlalchemy.url", db_url)
+
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

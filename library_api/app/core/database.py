@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 # 🔹 Load biến môi trường
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
+print(f"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA {DATABASE_URL}")
 
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL chưa được thiết lập trong .env")
