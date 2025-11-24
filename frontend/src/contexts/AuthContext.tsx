@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, ReactNode, useContext } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react';
 import AuthService from '../services/auth.service';
 import axios from 'axios';
 
@@ -39,7 +39,7 @@ export function useAuth() {
 }
 
 interface AuthProviderProps {
-  children: ReactNode;
+  children: any;
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
