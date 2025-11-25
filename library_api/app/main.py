@@ -1,9 +1,18 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.middleware.auth_middleware import AuthMiddleware
+from app.middleware.logging_middleware import LoggingMiddleware
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+
 
 app = FastAPI(
     title="Library API",
@@ -30,6 +39,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add the logging middleware (should be one of the first)
+app.add_middleware(LoggingMiddleware)
 
 # Add the custom authentication middleware
 app.add_middleware(AuthMiddleware)
