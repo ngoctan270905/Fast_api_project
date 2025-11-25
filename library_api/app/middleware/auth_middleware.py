@@ -9,13 +9,12 @@ from app.core.security import verify_scoped_token
 from app.repositories.user_repository import UserRepository
 from app.core.database import async_sessionmaker
 
-# Danh sách các path công khai (public) không yêu cầu xác thực
-# Dùng regex để linh hoạt (ví dụ: /api/v1/auth/*)
+# Những route không cần xác thực middle sẽ bỏ qua
 PUBLIC_PATHS: list[Pattern] = [
     re.compile(r"^/docs$"),
     re.compile(r"^/openapi\.json$"),
-    re.compile(r"^/api/v1/auth/.*$"),  # Tất cả các route liên quan đến auth là public
-    re.compile(r"^/api/v1/social-auth/.*$"),  # Tất cả các route social auth là public
+    re.compile(r"^/api/v1/auth/.*$"),
+    re.compile(r"^/api/v1/social-auth/.*$"),
 ]
 
 
@@ -27,19 +26,23 @@ class AuthMiddleware(BaseHTTPMiddleware):
         """
 
         # Kiểm tra xem route hiện tại có thuộc danh sách public hay không
-        for pattern in PUBLIC_PATHS:
+        for pattern in PUBLIC_PATHS: #PUBLIC_PATHS danh sách palttern công khai
+            # kiểm tra đường dẫn có khớp với plattern ko
             if pattern.match(request.url.path):
+                # nếu khớp thì sẽ bỏ qua bước xác thực và tiếp tục xử lí request
                 return await call_next(request)
 
-        # Nếu không phải route public → route cần bảo vệ → bắt buộc phải có token
+        # Nếu ko phải route public thì bắt đầu xác minh
         auth_header = request.headers.get("Authorization")
+        # nếu ko có header và ko header ko có dạng beared
         if not auth_header or not auth_header.startswith("Bearer "):
+            # trả về lỗi 401
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Chưa xác thực (Not authenticated)"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
-
+        # lấy token từ header
         token = auth_header.split(" ")[1]
 
         try:
