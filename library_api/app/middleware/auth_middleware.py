@@ -15,6 +15,7 @@ PUBLIC_PATHS: list[Pattern] = [
     re.compile(r"^/openapi\.json$"),
     re.compile(r"^/api/v1/auth/.*$"),
     re.compile(r"^/api/v1/social-auth/.*$"),
+    re.compile(r"^/api/v1/login/.*$"),
 ]
 
 
