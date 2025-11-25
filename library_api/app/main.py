@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware # Import SessionMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.router import api_router
-from app.core.config import settings # Import settings
+from app.core.config import settings
+from app.middleware.auth_middleware import AuthMiddleware
 
 app = FastAPI(
     title="Library API",
@@ -29,6 +30,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add the custom authentication middleware
+app.add_middleware(AuthMiddleware)
 
 # Include router version 1
 app.include_router(api_router, prefix="/api/v1")
