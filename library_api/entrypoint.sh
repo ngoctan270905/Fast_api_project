@@ -1,10 +1,13 @@
+#!/bin/sh
+
 # Chờ MySQL sẵn sàng
 echo "Waiting for MySQL..."
-for i in $(seq 1 20); do
+for i in $(seq 1 5); do
     mysqladmin ping -h db -uroot -p1 >/dev/null 2>&1 && break
-    echo "DB not ready, retrying ($i/20)..."
+    echo "DB not ready, retrying ($i/5)..."
     sleep 3
 done
+
 
 # Chạy Alembic migrations
 echo "Running Alembic migrations..."
