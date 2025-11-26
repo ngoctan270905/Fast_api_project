@@ -8,3 +8,4 @@ from .author import Author
 from .category import Category
 from .book_author import BookAuthor
 from .oauth_account import OAuthAccount
+from .refresh_token import RefreshToken

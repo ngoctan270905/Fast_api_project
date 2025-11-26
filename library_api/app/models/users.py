@@ -8,6 +8,10 @@ from app.core.timezone import now_vn
 class OAuthAccount(SQLModel):
     pass
 
+# Forward reference for the new RefreshToken model
+class RefreshToken(SQLModel):
+    pass
+
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(max_length=50, nullable=False, unique=True, index=True)
@@ -20,6 +24,7 @@ class User(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=now_vn, sa_column_kwargs={"onupdate": now_vn})
 
     oauth_accounts: List["OAuthAccount"] = Relationship(back_populates="user")
+    refresh_tokens: List["RefreshToken"] = Relationship(back_populates="user")
 
     @property
     def is_social_login(self) -> bool:

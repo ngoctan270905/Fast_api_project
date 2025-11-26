@@ -2,8 +2,8 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, status, Query
 
-from app.api.deps import get_user_service, get_current_admin_user, get_current_active_user
-# from app.core.dependencies import get_current_admin_user, get_current_active_user
+from app.api.deps import get_user_service
+from app.core.dependencies import get_current_admin_user, get_current_active_user
 from app.models.users import User
 from app.schemas.user import (
     UserCreate, 

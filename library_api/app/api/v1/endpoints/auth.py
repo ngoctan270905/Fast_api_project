@@ -1,11 +1,13 @@
 # app/api/v1/endpoints/auth.py
-from typing import Annotated
-from fastapi import APIRouter, Depends, status
+from typing import Annotated, Optional
+from fastapi import APIRouter, Depends, status, Response, Cookie, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.api.deps import get_auth_service
+from app.api.deps import get_auth_service, get_token_service, get_user_repository
 from app.core.dependencies import get_current_active_user
+from app.core.security import create_access_token
 from app.models.users import User
+from app.repositories.user_repository import UserRepository
 from app.schemas.auth import (
     UserRegister, 
     Token, 
@@ -15,6 +17,7 @@ from app.schemas.auth import (
     ResetPasswordRequest
 )
 from app.services.auth_service import AuthService
+from app.services.token_service import TokenService
 
 router = APIRouter()
 
@@ -68,13 +71,71 @@ async def reset_password(
 # ==================== LOGIN ====================
 @router.post("/login", response_model=Token)
 async def login(
-        form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-        auth_service: Annotated[AuthService, Depends(get_auth_service)]
+    response: Response,
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    token_service: Annotated[TokenService, Depends(get_token_service)]
 ):
     """
     Log in with OAuth2PasswordRequestForm.
+    Sets an HttpOnly refresh token cookie and returns an access token.
     """
-    return await auth_service.login(form_data)
+    return await auth_service.login(
+        response=response,
+        token_service=token_service,
+        username=form_data.username,
+        password=form_data.password
+    )
+
+# ==================== REFRESH TOKEN ====================
+@router.post("/refresh", response_model=Token)
+async def refresh_token(
+    response: Response,
+    token_service: Annotated[TokenService, Depends(get_token_service)],
+    user_repo: Annotated[UserRepository, Depends(get_user_repository)],
+    refresh_token: str = Cookie(None)
+):
+    """
+    Refresh the access token using the refresh token from the cookie.
+    Implements refresh token rotation.
+    """
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token not found"
+        )
+
+    # Verify the refresh token
+    user_id = await token_service.verify_refresh_token(refresh_token)
+
+    # Revoke the old refresh token (implementing rotation)
+    await token_service.revoke_refresh_token(refresh_token)
+
+    # Get user object
+    user = await user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not find user"
+        )
+
+    # Create new access and refresh tokens
+    new_access_token = create_access_token(
+        data={"sub": str(user.id), "username": user.username}
+    )
+    new_refresh_token = await token_service.create_refresh_token(user=user)
+
+    # Set the new refresh token in the cookie
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=30 * 24 * 60 * 60  # 30 days
+    )
+
+    return Token(access_token=new_access_token)
 
 # ==================== GET USER INFO ====================
 @router.get("/me", response_model=UserResponse)
@@ -87,16 +148,23 @@ async def get_current_user_info(
     return current_user
 
 # ==================== LOGOUT ====================
-@router.post("/logout")
+@router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(
-        current_user: Annotated[User, Depends(get_current_active_user)]
+    response: Response,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    token_service: Annotated[TokenService, Depends(get_token_service)],
+    refresh_token: Optional[str] = Cookie(None),
 ):
     """
-    Logout.
-    Note: With stateless JWT, the server doesn't store the token.
-    The client needs to delete the token on its side.
+    Logs out the user by revoking the refresh token and clearing the cookie.
     """
-    return {
-        "message": f"User {current_user.username} has been logged out successfully.",
-        "detail": "Please delete the access token on the client side."
-    }
+    if not refresh_token:
+        # If there's no refresh token, the user is effectively logged out.
+        # We can return a success message.
+        return {"message": "No active session found or already logged out."}
+
+    return await auth_service.logout(
+        response=response,
+        token_service=token_service,
+        refresh_token=refresh_token
+    )
