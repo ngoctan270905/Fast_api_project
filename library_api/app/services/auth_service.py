@@ -1,6 +1,5 @@
 from typing import Optional
-from fastapi import HTTPException, status, Depends, Request
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import HTTPException, status, Request, Response
 from app.models.users import User
 from app.schemas.auth import UserRegister, Token, UserResponse
 from app.repositories.user_repository import UserRepository
@@ -12,8 +11,9 @@ from app.core.security import (
     verify_scoped_token
 )
 from app.core.email import send_verification_email, send_password_reset_email
-from app.core.oauth import oauth # Import the oauth object
-from app.core.config import settings # Import settings
+from app.core.oauth import oauth
+from app.services.token_service import TokenService
+from app.core.config import settings
 
 class AuthService:
     """Service for handling authentication business logic (async)."""
@@ -250,39 +250,61 @@ class AuthService:
         
         return UserResponse.model_validate(updated_user)
 
-    async def login(self, form_data: OAuth2PasswordRequestForm = Depends()) -> Token:
-        """
-        Logs in a user and returns a token.
-        Allows login using either username or email.
-        """
-        user = await self.user_repo.get_by_username(form_data.username)
-        
-        # If user not found by username, try to find by email
+    # hàm xử lí logic đăng nhập
+    async def login(self, *, response: Response, token_service: TokenService, username: str, password: str) -> Token:
+        user = await self.user_repo.get_by_username(username)
         if not user:
-            user = await self.user_repo.get_by_email(form_data.username) # form_data.username might be an email
-
+            raise HTTPException(status_code=401, detail="User not found")
+        # tạo biến trước để kiểm tra mật khẩu là False
         is_password_correct = False
         if user:
-            is_password_correct = verify_password(form_data.password, user.hashed_password)
-
+            is_password_correct = verify_password(password, user.hashed_password)
+        # nếu user ko tồn tại hoặc password sai => 401
         if not user or not is_password_correct:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username/email or password", # Updated detail message
+                detail="Incorrect username/email or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-
+        # kiểm tra trạng thái hoạt động trước khi login
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Inactive user. Please verify your email first."
             )
-
+        # Nếu user tồn tại, mật khẩu đúng, đang active
+        # Thì gọi hàm create_access_token ở security.py để tạo access token
         access_token = create_access_token(
             data={"sub": str(user.id), "username": user.username}
         )
+        # Gọi tiếp services để xử lí thêm refresh_token
+        refresh_token = await token_service.create_refresh_token(user=user)
+
+        # Đặt refresh token về cooki httpOnly
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=settings.ENVIRONMENT == "production",  # Use secure cookies in production
+            samesite="lax",
+            max_age=settings.REFRESH_TOKEN_EXPIRE_SECONDS
+        )
 
         return Token(access_token=access_token)
+
+    # hàm xử lí logic đăng xuất
+    async def logout(self, *, response: Response, token_service: TokenService, refresh_token: str) -> dict:
+        try:
+            # gọi services để thu hồi token
+            await token_service.revoke_refresh_token(refresh_token)
+        except HTTPException as e: # bắt lỗi từ try và lưu vào e
+            if e.status_code not in [status.HTTP_401_UNAUTHORIZED, status.HTTP_404_NOT_FOUND]:
+                raise e # ném lỗi lên server
+        finally:
+            # luôn xóa cookie bên client
+            response.delete_cookie(key="refresh_token")
+
+        return {"message": "You have been logged out successfully."}
 
     async def authenticate_user(self, username: str, password: str) -> Optional[User]:
         """

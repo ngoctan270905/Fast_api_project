@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
-from app.middleware.auth_middleware import AuthMiddleware
 from app.middleware.logging_middleware import LoggingMiddleware
 
 # Configure logging
@@ -42,9 +41,6 @@ app.add_middleware(
 
 # Add the logging middleware (should be one of the first)
 app.add_middleware(LoggingMiddleware)
-
-# Add the custom authentication middleware
-app.add_middleware(AuthMiddleware)
 
 # Include router version 1
 app.include_router(api_router, prefix="/api/v1")

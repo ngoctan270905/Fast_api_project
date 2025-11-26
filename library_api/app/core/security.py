@@ -9,26 +9,25 @@ from app.core.config import settings
 # Create context for password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# Hàm băm mật khẩu
 def hash_password(password: str) -> str:
-    """Hashes a password using bcrypt."""
     return pwd_context.hash(password)
 
+# Hàm xác minh mật khẩu với password và hash_password
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifies a plain password against a hashed one."""
     return pwd_context.verify(plain_password, hashed_password)
 
+# hàm tạo access token
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Creates a standard JWT access token with an 'access_token' scope.
-    """
+
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+
     to_encode.update({"exp": expire, "scope": "access_token"})
-    
+
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
@@ -89,3 +88,17 @@ def verify_scoped_token(token: str, required_scope: str) -> str:
         )
     except JWTError:
         raise credentials_exception
+
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """
+    Tạo JWT refresh token với scope 'refresh_token'.
+    """
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
+    to_encode.update({"exp": expire, "scope": "refresh_token"})
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
