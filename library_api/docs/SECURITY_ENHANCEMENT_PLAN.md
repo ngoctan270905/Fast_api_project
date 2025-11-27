@@ -1,4 +1,4 @@
-# Kế hoạch Nâng cao Bảo mật cho API
+ # Kế hoạch Nâng cao Bảo mật cho API
 
 Tài liệu này tổng hợp tình hình bảo mật hiện tại của dự án và đề ra kế hoạch chi tiết để triển khai các tính năng bảo mật nâng cao còn thiếu.
 
