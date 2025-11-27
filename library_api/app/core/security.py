@@ -1,10 +1,14 @@
-# app/core/security.py
+import uuid
+
+from alembic.command import heads
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from fastapi import HTTPException, status
 from app.core.config import settings
+import redis.asyncio as redis
+from app.services.blacklist_service import BlacklistService
 
 # Create context for password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -26,7 +30,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode.update({"exp": expire, "scope": "access_token"})
+    to_encode.update({
+        "exp": expire,
+        "scope": "access_token",
+        "jti": str(uuid.uuid4()),
+    })
 
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
@@ -45,49 +53,72 @@ def create_scoped_token(subject: str, scope: str, expires_in_minutes: int) -> st
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
-def verify_scoped_token(token: str, required_scope: str) -> str:
-    """
-    Verifies a scoped JWT. It checks the signature, expiry, and scope.
-    
-    Args:
-        token: The JWT string to verify.
-        required_scope: The scope the token must have (e.g., "access_token", "email_verification").
-        
-    Returns:
-        The subject (sub) of the token if validation is successful.
-        
-    Raises:
-        HTTPException: If the token is invalid, expired, or has the wrong scope.
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+# Hàm xác thực JWT: signature, expiry, scope, blacklist
+async def verify_scoped_token(
+        token: str,
+        required_scope: str,
+        redis_client: Optional[redis.Redis] = None
+) -> str:
+
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        
-        token_scope = payload.get("scope")
+        # Decode và verify token
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+
+        # Kiểm tra subject
         subject = payload.get("sub")
-        
-        if subject is None:
-            raise credentials_exception
-            
+        if not subject:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Kiểm tra scope
+        token_scope = payload.get("scope")
         if token_scope != required_scope:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid token scope. Required: {required_scope}",
+                detail=f"Invalid token scope. Required: {required_scope}, got: {token_scope}",
+                headers={"WWW-Authenticate": "Bearer"},
             )
-            
+
+        # Kiểm tra blacklist (chỉ với access_token VÀ khi có redis_client)
+        if required_scope == "access_token" and redis_client:
+            jti = payload.get("jti")
+            if not jti:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token không có JTI (JWT ID)",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
+            blacklist_service = BlacklistService(redis_client)
+
+            if await blacklist_service.is_blacklisted(jti):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token đã bị thu hồi",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
         return subject
 
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    except JWTError:
-        raise credentials_exception
+    except JWTError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """

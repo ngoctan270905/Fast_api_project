@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     FACEBOOK_CLIENT_ID: str
     FACEBOOK_CLIENT_SECRET: str
 
+    # Cấu hình cài đặt Redis
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_DB: int
+
     class Config:
         env_file = ".env"
         case_sensitive = True
