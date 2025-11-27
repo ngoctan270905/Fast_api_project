@@ -1,26 +1,36 @@
 from typing import Annotated
+
+from dns.dnssecalgs import algorithms
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from jose import JWTError
+from jose import jwt, JWTError
 
+from app.core.config import settings
 from app.models.users import User
 from app.core.database import get_session
 from app.core.security import verify_scoped_token
+from app.core.redis_client import get_redis_client
+from app.services.blacklist_service import BlacklistService
+import redis.asyncio as redis
 
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
+# hàm kiểm tra và lấy thông tin user từ access_token
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
-    session: DbSession
+    session: DbSession,
+    redis_client: Annotated[redis.Redis, Depends(get_redis_client)]
 ) -> User:
     try:
-        user_id = verify_scoped_token(token, required_scope="access_token")
-        if not user_id:
-            raise JWTError("User ID not in token")
+        user_id = await verify_scoped_token(
+            token,
+            required_scope="access_token",
+            redis_client=redis_client
+        )
 
     except JWTError as e:
         raise HTTPException(

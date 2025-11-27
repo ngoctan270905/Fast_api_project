@@ -130,47 +130,250 @@ class BlacklistService:
         return await self.redis_client.exists(key)
 ```
 
-### Bước 5: Tích hợp Blacklist vào Dependency Xác thực
+### Bước 5: Tái cấu trúc và Tích hợp Blacklist vào Luồng Xác thực
 
-Cập nhật `get_current_user` trong `library_api/app/core/dependencies.py` để kiểm tra blacklist sau khi giải mã token.
+
+
+Để có một kiến trúc trong sạch và dễ bảo trì, chúng ta sẽ **tái cấu trúc** lại logic xác thực token. Thay vì kiểm tra blacklist bên trong `get_current_user`, chúng ta sẽ chuyển toàn bộ logic xác thực—bao gồm cả kiểm tra blacklist—vào trong hàm `verify_scoped_token`.
+
+
+
+Cách tiếp cận này giúp **đóng gói** toàn bộ trách nhiệm xác thực token vào một nơi duy nhất (`security.py`), giúp `dependencies.py` trở nên đơn giản và chỉ tập trung vào việc lấy dữ liệu.
+
+
+
+#### 5.1. Cập nhật `verify_scoped_token` trong `app/core/security.py`
+
+
+
+Hàm `verify_scoped_token` sẽ được chuyển thành `async`, nhận thêm `redis_client`, và thực hiện kiểm tra blacklist.
+
+
 
 ```python
-# Thêm các import cần thiết
-from app.core.redis_client import get_redis_client
-from app.services.blacklist_service import BlacklistService
+
+# app/core/security.py
+
+
+
+# ... (thêm các import cần thiết ở đầu file)
+
 import redis.asyncio as redis
+
+from app.services.blacklist_service import BlacklistService
+
+
 
 # ...
 
-async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    session: DbSession,
-    redis_client: Annotated[redis.Redis, Depends(get_redis_client)] # Inject redis client
-) -> User:
-    # ... (phần try/except giải mã token giữ nguyên)
+
+
+async def verify_scoped_token(token: str, required_scope: str, redis_client: redis.Redis) -> str:
+
+    """
+
+    Xác thực một JWT, kiểm tra chữ ký, thời gian hết hạn, scope, và trạng thái blacklist.
+
+    """
+
+    credentials_exception = HTTPException(
+
+        status_code=status.HTTP_401_UNAUTHORIZED,
+
+        detail="Could not validate credentials",
+
+        headers={"WWW-Authenticate": "Bearer"},
+
+    )
+
     try:
-        # ... giải mã payload từ token ...
+
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        jti = payload.get("jti")
-        if not jti:
-            raise JWTError("Token does not have a JTI (JWT ID)")
+
+        
+
+        # Kiểm tra scope và subject
+
+        token_scope = payload.get("scope")
+
+        subject = payload.get("sub")
+
+        if subject is None:
+
+            raise credentials_exception
+
+        if token_scope != required_scope:
+
+            raise HTTPException(
+
+                status_code=status.HTTP_401_UNAUTHORIZED,
+
+                detail=f"Invalid token scope. Required: {required_scope}",
+
+            )
+
+
 
         # === PHẦN THÊM MỚI: KIỂM TRA BLACKLIST ===
-        blacklist_service = BlacklistService(redis_client)
-        if await blacklist_service.is_blacklisted(jti):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been revoked (blacklisted)",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+
+        # Chỉ kiểm tra blacklist đối với access_token
+
+        if required_scope == "access_token":
+
+            jti = payload.get("jti")
+
+            if not jti:
+
+                raise JWTError("Token does not have a JTI (JWT ID)")
+
+
+
+            blacklist_service = BlacklistService(redis_client)
+
+            if await blacklist_service.is_blacklisted(jti):
+
+                raise HTTPException(
+
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+
+                    detail="Token has been revoked",
+
+                    headers={"WWW-Authenticate": "Bearer"},
+
+                )
+
         # ==========================================
 
-        user_id_str = payload.get("sub")
-        # ...
-    # ... (phần xử lý exception giữ nguyên)
+            
 
-    # ... (phần truy vấn user giữ nguyên)
+        return subject
+
+
+
+    except jwt.ExpiredSignatureError:
+
+        raise HTTPException(
+
+            status_code=status.HTTP_401_UNAUTHORIZED,
+
+            detail="Token has expired",
+
+        )
+
+    except JWTError as e:
+
+        # Ném lại lỗi cụ thể nếu có
+
+        raise HTTPException(
+
+            status_code=status.HTTP_401_UNAUTHORIZED,
+
+            detail=str(e),
+
+            headers={"WWW-Authenticate": "Bearer"},
+
+        )
+
+```
+
+
+
+#### 5.2. Đơn giản hóa `get_current_user` trong `app/core/dependencies.py`
+
+
+
+Bây giờ, `get_current_user` chỉ cần gọi `verify_scoped_token` đã được nâng cấp và xử lý kết quả.
+
+
+
+```python
+
+# app/core/dependencies.py
+
+
+
+# ... (các import khác giữ nguyên)
+
+from app.core.security import verify_scoped_token # Đảm bảo đã import
+
+# ...
+
+
+
+async def get_current_user(
+
+    token: Annotated[str, Depends(oauth2_scheme)],
+
+    session: DbSession,
+
+    redis_client: Annotated[redis.Redis, Depends(get_redis_client)]
+
+) -> User:
+
+    try:
+
+        # Gọi hàm xác thực đã bao gồm cả check blacklist
+
+        user_id = await verify_scoped_token(
+
+            token=token, 
+
+            required_scope="access_token", 
+
+            redis_client=redis_client
+
+        )
+
+        if not user_id:
+
+            raise JWTError("User ID not in token")
+
+
+
+    except HTTPException as e:
+
+        # Ném lại lỗi từ verify_scoped_token
+
+        raise e
+
+    except JWTError as e:
+
+        raise HTTPException(
+
+            status_code=status.HTTP_401_UNAUTHORIZED,
+
+            detail=f"Invalid token: {e}",
+
+            headers={"WWW-Authenticate": "Bearer"},
+
+        )
+
+
+
+    # Lấy thông tin user từ DB
+
+    query = select(User).where(User.id == user_id)
+
+    result = await session.execute(query)
+
+    user = result.scalar_one_or_none()
+
+
+
+    if not user:
+
+        raise HTTPException(
+
+            status_code=status.HTTP_401_UNAUTHORIZED,
+
+            detail="User not found",
+
+            headers={"WWW-Authenticate": "Bearer"},
+
+        )
+
     return user
+
 ```
 
 ### Bước 6: Cập nhật Luồng Đăng xuất (`auth.py`)
