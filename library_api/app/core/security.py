@@ -1,4 +1,6 @@
 # app/core/security.py
+import uuid
+
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Optional
@@ -26,7 +28,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode.update({"exp": expire, "scope": "access_token"})
+    to_encode.update({
+        "exp": expire,
+        "scope": "access_token",
+        "jti": str(uuid.uuid4()),
+    })
 
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
