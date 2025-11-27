@@ -1,4 +1,9 @@
 from typing import Optional
+
+import redis.asyncio as redis
+import time
+from jose import jwt, JWTError
+from app.services.blacklist_service import BlacklistService
 from fastapi import HTTPException, status, Request, Response
 from app.models.users import User
 from app.schemas.auth import UserRegister, Token, UserResponse
@@ -189,7 +194,7 @@ class AuthService:
         """
         Verifies a user's email address from a token.
         """
-        email = verify_scoped_token(token, required_scope="email_verification")
+        email = await verify_scoped_token(token, required_scope="email_verification")
         
         user = await self.user_repo.get_by_email(email)
         if not user:
@@ -293,18 +298,50 @@ class AuthService:
         return Token(access_token=access_token)
 
     # hàm xử lí logic đăng xuất
-    async def logout(self, *, response: Response, token_service: TokenService, refresh_token: str) -> dict:
-        try:
-            # gọi services để thu hồi token
-            await token_service.revoke_refresh_token(refresh_token)
-        except HTTPException as e: # bắt lỗi từ try và lưu vào e
-            if e.status_code not in [status.HTTP_401_UNAUTHORIZED, status.HTTP_404_NOT_FOUND]:
-                raise e # ném lỗi lên server
-        finally:
-            # luôn xóa cookie bên client
-            response.delete_cookie(key="refresh_token")
+    async def logout(
+            self, *,
+            response: Response,
+            token_service: TokenService,
+            redis_client: redis.Redis,
+            access_token: str,
+            refresh_token: Optional[str]
+    ) -> dict:
 
-        return {"message": "You have been logged out successfully."}
+        # Thêm token vào ds đen
+        try:
+            # giải mã token lấy jti exp
+            payload = jwt.decode(
+                access_token,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
+                options={"verify_signature": False}
+            )
+            jti = payload.get("jti") # mã định danh
+            exp = payload.get("exp") # thời gian hết hạn
+
+            if jti and exp:
+                blacklist_service = BlacklistService(redis_client)
+                # số giây token còn sống : thời gian hết hạn - tg hiện tại
+                ttl = exp - int(time.time())
+
+                if ttl > 0:  # chỉ thêm v àoblacklist nếu token chưa hết hạn
+                    await blacklist_service.add_to_blacklist(jti, ttl)
+
+        except Exception as e:
+            print(f"Lỗi khi thêm vào black list: {e}")
+
+        # revoke refresh token (nếu có)
+        if refresh_token:
+            try:
+                await token_service.revoke_refresh_token(refresh_token)
+            except HTTPException as e:
+                if e.status_code not in [status.HTTP_401_UNAUTHORIZED, status.HTTP_404_NOT_FOUND]:
+                    raise e
+
+        # Luôn xóa cookie
+        response.delete_cookie(key="refresh_token")
+
+        return {"message": "Bạn đã logout thành công"}
 
     async def authenticate_user(self, username: str, password: str) -> Optional[User]:
         """

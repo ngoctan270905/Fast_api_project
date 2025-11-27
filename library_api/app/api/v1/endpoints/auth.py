@@ -1,10 +1,13 @@
 # app/api/v1/endpoints/auth.py
 from typing import Annotated, Optional
+
+import redis.asyncio as redis
 from fastapi import APIRouter, Depends, status, Response, Cookie, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import get_auth_service, get_token_service, get_user_repository
-from app.core.dependencies import get_current_active_user
+from app.core.dependencies import get_current_active_user, get_current_user, oauth2_scheme
+from app.core.redis_client import get_redis_client
 from app.core.security import create_access_token
 from app.models.users import User
 from app.repositories.user_repository import UserRepository
@@ -151,20 +154,22 @@ async def get_current_user_info(
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(
     response: Response,
+    current_user: Annotated[User, Depends(get_current_user)],
+    redis_client: Annotated[redis.Redis, Depends(get_redis_client)],
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
     token_service: Annotated[TokenService, Depends(get_token_service)],
+    token: Annotated[str, Depends(oauth2_scheme)],
     refresh_token: Optional[str] = Cookie(None),
 ):
     """
-    Logs out the user by revoking the refresh token and clearing the cookie.
+    Đăng xuất người dùng bằng cách:
+    1. Vô hiệu hóa access token (thêm vào blacklist).
+    2. Thu hồi refresh token (xóa khỏi DB và cookie).
     """
-    if not refresh_token:
-        # If there's no refresh token, the user is effectively logged out.
-        # We can return a success message.
-        return {"message": "No active session found or already logged out."}
-
     return await auth_service.logout(
         response=response,
         token_service=token_service,
+        redis_client=redis_client,
+        access_token=token,
         refresh_token=refresh_token
     )
