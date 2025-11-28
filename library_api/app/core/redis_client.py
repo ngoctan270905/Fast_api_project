@@ -1,23 +1,34 @@
 import redis.asyncio as redis
+from typing import AsyncGenerator
 from app.core.config import settings
 
-# tạo 1 connection pool để tái sử dụng
-redis_pool = redis.ConnectionPool(
-    host=settings.REDIS_HOST,
-    port=settings.REDIS_PORT,
-    db=settings.REDIS_DB,
-    decode_responses=True # sẽ chuyển đổi từ bytes sang str
-)
+# Global connection pool
+redis_pool: redis.ConnectionPool | None = None
 
-# hàm dependency connection để lấy redis client
-# async def get_redis_client() -> redis.Redis:
-#     return redis.Redis(connection_pool=redis_pool)
+async def get_redis_pool() -> redis.ConnectionPool:
+    global redis_pool
+    if redis_pool is None:
+        redis_pool = redis.ConnectionPool(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=settings.REDIS_DB,
+            decode_responses=True,
+            max_connections=10
+        )
+    return redis_pool
 
-# hàm dependency connection để
-# lấy redis client -> server thao tác redis -> trả kết quả về enpoin
-async def get_redis_client():
-    client = redis.Redis(connection_pool=redis_pool)
+
+async def close_redis_pool():
+    global redis_pool
+    if redis_pool:
+        await redis_pool.aclose()
+        redis_pool = None
+
+
+async def get_redis_client() -> AsyncGenerator[redis.Redis, None]:
+    pool = await get_redis_pool()
+    client = redis.Redis(connection_pool=pool)
     try:
         yield client
     finally:
-        await client.close()
+        await client.aclose()

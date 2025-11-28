@@ -318,6 +318,7 @@ class AuthService:
             )
             jti = payload.get("jti") # mã định danh
             exp = payload.get("exp") # thời gian hết hạn
+            user_id = payload.get("sub")
 
             if jti and exp:
                 blacklist_service = BlacklistService(redis_client)
@@ -325,7 +326,7 @@ class AuthService:
                 ttl = exp - int(time.time())
 
                 if ttl > 0:  # chỉ thêm v àoblacklist nếu token chưa hết hạn
-                    await blacklist_service.add_to_blacklist(jti, ttl)
+                    await blacklist_service.add_to_blacklist(jti, ttl, user_id=user_id, exp=exp)
 
         except Exception as e:
             print(f"Lỗi khi thêm vào black list: {e}")

@@ -5,30 +5,23 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.middleware.logging_middleware import LoggingMiddleware
+from app.core.lifespan import lifespan
 
-# Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO if settings.ENVIRONMENT == "development" else logging.WARNING,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
+logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="Library API",
-)
+app = FastAPI(title="Library API", lifespan=lifespan)
 
-# Add SessionMiddleware
-# This is required by Authlib to store state and other data in the session.
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=settings.SECRET_KEY
-)
+app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
-# Set up CORS
 origins = [
     "http://localhost",
     "http://localhost:3000",
-    "http://localhost:5173", # Default Vite port
+    "http://localhost:5173",
 ]
 
 app.add_middleware(
@@ -39,8 +32,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add the logging middleware (should be one of the first)
 app.add_middleware(LoggingMiddleware)
 
-# Include router version 1
 app.include_router(api_router, prefix="/api/v1")
