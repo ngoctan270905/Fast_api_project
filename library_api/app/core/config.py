@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     REDIS_PORT: int
     REDIS_DB: int
 
+    # Cấu hình cài đặt Redis
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_DEFAULT: str = "100/minute"
+    RATE_LIMIT_AUTH: str = "10/minute"
+
     @computed_field
     def REDIS_URL(self) -> str:
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
