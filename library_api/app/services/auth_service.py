@@ -4,7 +4,7 @@ import redis.asyncio as redis
 import time
 from jose import jwt, JWTError
 from app.services.blacklist_service import BlacklistService
-from fastapi import HTTPException, status, Request, Response
+from fastapi import HTTPException, status, Request, Response, BackgroundTasks
 from app.models.users import User
 from app.schemas.auth import UserRegister, Token, UserResponse
 from app.repositories.user_repository import UserRepository
@@ -154,7 +154,7 @@ class AuthService:
                 detail=f"Facebook authentication failed: {e}"
             )
 
-    async def register(self, user_data: UserRegister) -> UserResponse:
+    async def register(self, user_data: UserRegister, background_tasks: BackgroundTasks) -> UserResponse:
         """
         Registers a new user, sets them as inactive, and sends a verification email.
         """
@@ -183,9 +183,15 @@ class AuthService:
             scope="email_verification",
             expires_in_minutes=60 * 24  # 24 hours
         )
-        await send_verification_email(
+        # await send_verification_email(
+        #     email_to=created_user.email,
+        #     token=verification_token
+        # )
+
+        background_tasks.add_task(
+            send_verification_email,
             email_to=created_user.email,
-            token=verification_token
+            token=verification_token,
         )
 
         return UserResponse.model_validate(created_user)
