@@ -54,13 +54,14 @@ async def verify_email(
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
 async def forgot_password(
     request: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
     auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ):
     """
     Initiate the password reset process.
     A success message is always returned to prevent email enumeration attacks.
     """
-    return await auth_service.forgot_password(request.email)
+    return await auth_service.forgot_password(request.email, background_tasks)
 
 @router.post("/reset-password", response_model=UserResponse)
 async def reset_password(

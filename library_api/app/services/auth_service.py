@@ -221,7 +221,7 @@ class AuthService:
         
         return UserResponse.model_validate(updated_user)
 
-    async def forgot_password(self, email: str):
+    async def forgot_password(self, email: str, background_tasks: BackgroundTasks):
         """
         Handles the forgot password request.
         Finds the user, generates a reset token, and sends an email.
@@ -236,12 +236,18 @@ class AuthService:
                 expires_in_minutes=15  # 15 minutes expiry
             )
 
-            await send_password_reset_email(
+            # await send_password_reset_email(
+            #     email_to=user.email,
+            #     token=password_reset_token
+            # )
+
+            background_tasks.add_task(
+                send_password_reset_email,
                 email_to=user.email,
-                token=password_reset_token
+                token=password_reset_token,
             )
         # Always return a success message to the user
-        return {"message": "If an account with that email exists, a password reset link has been sent."}
+        return {"message": "Đã gửi link khôi phục mật khẩu, vui lòng kiểm tra email"}
 
     async def reset_password(self, token: str, new_password: str) -> UserResponse:
         """
