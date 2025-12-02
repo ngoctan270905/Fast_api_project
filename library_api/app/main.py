@@ -1,34 +1,42 @@
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import JSONResponse
+
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.middleware.logging_middleware import LoggingMiddleware
+from app.core.lifespan import lifespan
 
-# Configure logging
+from app.core.rate_limiter import limiter
+from slowapi.errors import RateLimitExceeded
+
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO if settings.ENVIRONMENT == "development" else logging.WARNING,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
+logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="Library API",
-)
+app = FastAPI(title="Library API", lifespan=lifespan)
 
-# Add SessionMiddleware
-# This is required by Authlib to store state and other data in the session.
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=settings.SECRET_KEY
-)
+app.state.limiter = limiter
 
-# Set up CORS
+# exception trả lỗi 429
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"Lỗi": f"Vượt quá giới hạn limit: {exc.detail}"},
+    )
+
+app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
+
 origins = [
     "http://localhost",
     "http://localhost:3000",
-    "http://localhost:5173", # Default Vite port
+    "http://localhost:5173",
 ]
 
 app.add_middleware(
@@ -39,8 +47,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add the logging middleware (should be one of the first)
 app.add_middleware(LoggingMiddleware)
 
-# Include router version 1
 app.include_router(api_router, prefix="/api/v1")

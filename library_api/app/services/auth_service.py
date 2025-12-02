@@ -4,7 +4,7 @@ import redis.asyncio as redis
 import time
 from jose import jwt, JWTError
 from app.services.blacklist_service import BlacklistService
-from fastapi import HTTPException, status, Request, Response
+from fastapi import HTTPException, status, Request, Response, BackgroundTasks
 from app.models.users import User
 from app.schemas.auth import UserRegister, Token, UserResponse
 from app.repositories.user_repository import UserRepository
@@ -154,7 +154,7 @@ class AuthService:
                 detail=f"Facebook authentication failed: {e}"
             )
 
-    async def register(self, user_data: UserRegister) -> UserResponse:
+    async def register(self, user_data: UserRegister, background_tasks: BackgroundTasks) -> UserResponse:
         """
         Registers a new user, sets them as inactive, and sends a verification email.
         """
@@ -183,9 +183,15 @@ class AuthService:
             scope="email_verification",
             expires_in_minutes=60 * 24  # 24 hours
         )
-        await send_verification_email(
+        # await send_verification_email(
+        #     email_to=created_user.email,
+        #     token=verification_token
+        # )
+
+        background_tasks.add_task(
+            send_verification_email,
             email_to=created_user.email,
-            token=verification_token
+            token=verification_token,
         )
 
         return UserResponse.model_validate(created_user)
@@ -215,7 +221,7 @@ class AuthService:
         
         return UserResponse.model_validate(updated_user)
 
-    async def forgot_password(self, email: str):
+    async def forgot_password(self, email: str, background_tasks: BackgroundTasks):
         """
         Handles the forgot password request.
         Finds the user, generates a reset token, and sends an email.
@@ -230,12 +236,18 @@ class AuthService:
                 expires_in_minutes=15  # 15 minutes expiry
             )
 
-            await send_password_reset_email(
+            # await send_password_reset_email(
+            #     email_to=user.email,
+            #     token=password_reset_token
+            # )
+
+            background_tasks.add_task(
+                send_password_reset_email,
                 email_to=user.email,
-                token=password_reset_token
+                token=password_reset_token,
             )
         # Always return a success message to the user
-        return {"message": "If an account with that email exists, a password reset link has been sent."}
+        return {"message": "Đã gửi link khôi phục mật khẩu, vui lòng kiểm tra email"}
 
     async def reset_password(self, token: str, new_password: str) -> UserResponse:
         """
@@ -318,6 +330,7 @@ class AuthService:
             )
             jti = payload.get("jti") # mã định danh
             exp = payload.get("exp") # thời gian hết hạn
+            user_id = payload.get("sub")
 
             if jti and exp:
                 blacklist_service = BlacklistService(redis_client)
@@ -325,7 +338,7 @@ class AuthService:
                 ttl = exp - int(time.time())
 
                 if ttl > 0:  # chỉ thêm v àoblacklist nếu token chưa hết hạn
-                    await blacklist_service.add_to_blacklist(jti, ttl)
+                    await blacklist_service.add_to_blacklist(jti, ttl, user_id=user_id, exp=exp)
 
         except Exception as e:
             print(f"Lỗi khi thêm vào black list: {e}")

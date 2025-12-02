@@ -2,7 +2,7 @@
 from typing import Annotated, Optional
 
 import redis.asyncio as redis
-from fastapi import APIRouter, Depends, status, Response, Cookie, HTTPException
+from fastapi import APIRouter, Depends, status, Response, Cookie, HTTPException, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import get_auth_service, get_token_service, get_user_repository
@@ -28,6 +28,7 @@ router = APIRouter()
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
         user_data: UserRegister,
+        background_tasks: BackgroundTasks,
         auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ):
     """
@@ -36,7 +37,7 @@ async def register(
     - Sends a verification email.
     - Does NOT return a login token.
     """
-    return await auth_service.register(user_data)
+    return await auth_service.register(user_data, background_tasks)
 
 # ==================== VERIFY EMAIL ====================
 @router.post("/verify-email", response_model=UserResponse)
@@ -53,13 +54,14 @@ async def verify_email(
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
 async def forgot_password(
     request: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
     auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ):
     """
     Initiate the password reset process.
     A success message is always returned to prevent email enumeration attacks.
     """
-    return await auth_service.forgot_password(request.email)
+    return await auth_service.forgot_password(request.email, background_tasks)
 
 @router.post("/reset-password", response_model=UserResponse)
 async def reset_password(

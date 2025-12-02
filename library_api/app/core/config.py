@@ -1,18 +1,38 @@
 from pydantic_settings import BaseSettings
+from pydantic import computed_field
 
 class Settings(BaseSettings):
-    DATABASE_URL: str
-    DATABASE_URL_SYNC: str
-    SECRET_KEY: str = "your-secret-key-change-in-production"  #
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    ENVIRONMENT: str = "development"
-    REFRESH_TOKEN_EXPIRE_SECONDS: int = 60 * 60 * 24 * 30
 
+    # Cấu hình app name
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "FastAPI JWT Auth"
+    ENVIRONMENT: str
 
-    # Email settings for fastapi-mail
+    # Cấu hình database
+    MYSQL_USER: str
+    MYSQL_PASSWORD: str
+    MYSQL_SERVER: str
+    MYSQL_PORT: int
+    MYSQL_DB: str
+    MYSQL_ASYNC_PREFIX: str = "mysql+aiomysql://"
+    MYSQL_SYNC_PREFIX: str = "mysql+pymysql://"
+
+    # Build URLs tự động
+    @computed_field
+    def DATABASE_URL(self) -> str:
+        return f"{self.MYSQL_ASYNC_PREFIX}{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_SERVER}:{self.MYSQL_PORT}/{self.MYSQL_DB}"
+
+    @computed_field
+    def DATABASE_URL_SYNC(self) -> str:
+        return f"{self.MYSQL_SYNC_PREFIX}{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_SERVER}:{self.MYSQL_PORT}/{self.MYSQL_DB}"
+
+    # Cấu hình JWT
+    SECRET_KEY: str
+    ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+    REFRESH_TOKEN_EXPIRE_SECONDS: int
+
+    # Cấu hình email
     MAIL_USERNAME: str
     MAIL_PASSWORD: str
     MAIL_FROM: str
@@ -22,18 +42,14 @@ class Settings(BaseSettings):
     MAIL_SSL_TLS: bool = False
     MAIL_FROM_NAME: str = PROJECT_NAME
 
-    # Frontend URL for constructing links in emails
-    CLIENT_BASE_URL: str = "http://localhost:5173"
+    # Địa chỉ url frontend tạo link trong email
+    CLIENT_BASE_URL: str
 
-    # Google OAuth Settings
+    # OAUTH2
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
-
-    # Github OAuth Settings
     GITHUB_CLIENT_ID: str
     GITHUB_CLIENT_SECRET: str
-
-    # Facebook OAuth Settings
     FACEBOOK_CLIENT_ID: str
     FACEBOOK_CLIENT_SECRET: str
 
@@ -41,6 +57,15 @@ class Settings(BaseSettings):
     REDIS_HOST: str
     REDIS_PORT: int
     REDIS_DB: int
+
+    # Cấu hình cài đặt Redis
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_DEFAULT: str = "100/minute"
+    RATE_LIMIT_AUTH: str = "10/minute"
+
+    @computed_field
+    def REDIS_URL(self) -> str:
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     class Config:
         env_file = ".env"
