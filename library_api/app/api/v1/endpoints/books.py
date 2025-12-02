@@ -5,6 +5,7 @@ from app.core.dependencies import DbSession
 from app.core.database import get_session
 from app.services.book_service import BookService
 from app.schemas.book import BookResponse, BookListResponse, BookCreate, BookUpdate
+from app.schemas.response import ResponseModel
 
 router = APIRouter()
 
@@ -89,7 +90,7 @@ async def get_book_detail(
 
 @router.post(
     "/",
-    response_model=BookResponse,
+    response_model=ResponseModel[BookResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Tạo sách mới",
     description="Tạo sách mới với category_id và danh sách author_ids"
@@ -130,7 +131,8 @@ async def create_book(
     """
     service = BookService(db)
     new_book = await service.create_new_book(book_data)  # ✅ await
-    return new_book
+    # return new_book
+    return ResponseModel(data=new_book, message="Book created successfully.")
 
 
 # ============================================
