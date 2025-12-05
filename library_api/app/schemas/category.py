@@ -1,15 +1,16 @@
-from sqlmodel import SQLModel, Field
-from typing import Optional, List
+from typing import Optional
+from pydantic import BaseModel, Field
 
-class CategoryCreate(SQLModel):
+class CategoryBase(BaseModel):
     name: str
 
-class CategoryUpdate(SQLModel):
+class CategoryCreate(CategoryBase):
+    pass
+
+class CategoryUpdate(BaseModel):
     name: Optional[str] = None
 
-class CategoryResponse(SQLModel):
-    id: int
+class CategoryResponse(BaseModel):
+    id: str = Field(...)
     name: str
 
-    class Config:
-        from_attributes = True

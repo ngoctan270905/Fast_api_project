@@ -2,9 +2,10 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from fastapi import FastAPI
-from app.core.database import test_db_connection
-from app.core.database import dispose_db
+# from app.core.database import test_db_connection
+# from app.core.database import dispose_db
 from app.core.redis_client import get_redis_pool, close_redis_pool
+from .mongo_database import mongodb_client
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         # 1. Database
         logger.info("Đang khởi tạo cơ sở dữ liệu...")
-        await test_db_connection()
+        # await test_db_connection()
+        mongodb_client.connect()
         logger.info("Cơ sở dữ liệu đã được khởi tạo")
 
         # 2. Redis pool
@@ -56,7 +58,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         # 2. Database
         logger.info("Đang giải phóng cơ sở dữ liệu...")
-        await dispose_db()
+        # await dispose_db()
+        mongodb_client.close()
         logger.info("Cơ sở dữ liệu đã được giải phóng")
 
         logger.info("=" * 50)

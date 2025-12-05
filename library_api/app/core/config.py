@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "FastAPI JWT Auth"
     ENVIRONMENT: str
 
-    # Cấu hình database
+    #Cấu hình database
     MYSQL_USER: str
     MYSQL_PASSWORD: str
     MYSQL_SERVER: str
@@ -17,7 +17,11 @@ class Settings(BaseSettings):
     MYSQL_ASYNC_PREFIX: str = "mysql+aiomysql://"
     MYSQL_SYNC_PREFIX: str = "mysql+pymysql://"
 
-    # Build URLs tự động
+    # Cấu hình Mongo
+    MONGO_CONNECTION_STRING: str
+    MONGO_DB_NAME: str
+
+    #Build URLs tự động
     @computed_field
     def DATABASE_URL(self) -> str:
         return f"{self.MYSQL_ASYNC_PREFIX}{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_SERVER}:{self.MYSQL_PORT}/{self.MYSQL_DB}"
