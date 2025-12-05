@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # 1. Database
         logger.info("Đang khởi tạo cơ sở dữ liệu...")
         # await test_db_connection()
-        mongodb_client.connect()
+        await mongodb_client.connect()
         logger.info("Cơ sở dữ liệu đã được khởi tạo")
 
         # 2. Redis pool
@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # 2. Database
         logger.info("Đang giải phóng cơ sở dữ liệu...")
         # await dispose_db()
-        mongodb_client.close()
+        await mongodb_client.close()
         logger.info("Cơ sở dữ liệu đã được giải phóng")
 
         logger.info("=" * 50)

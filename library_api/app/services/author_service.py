@@ -3,7 +3,7 @@ from fastapi import HTTPException, status
 from typing import List
 from app.repositories.author_repository import AuthorRepository
 from app.models.author import Author
-from app.schemas.author import AuthorCreate, AuthorUpdate
+from app.schemas.author import AuthorCreate, AuthorUpdate, AuthorResponse
 
 
 class AuthorService:

@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import List
+
+from pyexpat.errors import messages
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import DbSession
 from app.core.database import get_session
+from app.schemas.response import ResponseModel
 from app.services.category_service import CategoryService
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse
 from app.api.deps import get_category_service
@@ -12,18 +15,18 @@ router = APIRouter()
 # GET tất cả categories
 @router.get(
     "/",
-    response_model=List[CategoryResponse],
+    response_model=ResponseModel[List[CategoryResponse]],
     summary="Lấy danh sách categories"
 )
 async def get_categories(service: CategoryService = Depends(get_category_service)):
     categories = await service.get_all_categories()
-    return categories
+    return ResponseModel(data=categories, message="Lấy danh sách category thành công")
 
 
 # GET category theo ID:
 @router.get(
     "/{category_id}",
-    response_model=CategoryResponse,
+    response_model=ResponseModel[CategoryResponse],
     summary="Lấy chi tiết category"
 )
 async def get_category(
@@ -33,33 +36,28 @@ async def get_category(
     category = await service.get_category(category_id)
     if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    return category
+    return ResponseModel(data=category, message="Lấy thông tin danh mục thành công")
 
 
 # tạo category
 @router.post(
     "/",
-    response_model=CategoryResponse,
+    response_model=ResponseModel[CategoryResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Tạo category mới"
 )
 async def create_category(
     category_data: CategoryCreate,
-    # --- THAY ĐỔI QUAN TRỌNG ---
-    # Thay vì inject `DbSession`, chúng ta inject `CategoryService`
-    # thông qua hàm provider `get_category_service`.
     service: CategoryService = Depends(get_category_service)
 ):
-    # Dòng `service = CategoryService(db)` đã được loại bỏ.
-    # FastAPI đã tự động tạo và cung cấp cho chúng ta một instance 'service' sẵn sàng để sử dụng.
     new_category = await service.create_category(category_data)
-    return new_category
+    return ResponseModel(data=new_category, message="Thêm category thành công")
 
 
 # update category:
 @router.put(
     "/{category_id}",
-    response_model=CategoryResponse,
+    response_model=ResponseModel[CategoryResponse],
     summary="Cập nhật category"
 )
 async def update_category(
@@ -70,7 +68,7 @@ async def update_category(
     updated_category = await service.update_category(category_id, category_data)
     if not updated_category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    return updated_category
+    return ResponseModel(data=updated_category, message="Cập nhật danh mục thành công")
 
 # xóa
 @router.delete(
