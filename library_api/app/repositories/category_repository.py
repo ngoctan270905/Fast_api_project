@@ -16,22 +16,22 @@ class CategoryRepository:
             categories.append(category)
         return categories
 
-    # truy vấn db lấy category theo id
-    async def get_by_category_id(self, category_id: str) -> Optional[Dict[str, Any]]:
-        category = await self.collection.find_one({"_id": ObjectId(category_id)})
-        return category
+    # thao tác vs db tạo category mới
+    async def create_category(self, category_create: CategoryCreate) -> Dict[str, Any]:
+        category_data = category_create.model_dump()
+        result = await self.collection.insert_one(category_data)
+        category_data["_id"] = result.inserted_id
+        return
 
     # truy vấn db lấy category theo name
     async def get_category_by_name(self, name: str) -> Optional[Dict[str, Any]]:
         category = await self.collection.find_one({"name": name})
         return category
 
-    # thao tác vs db tạo category mới
-    async def create_category(self, category_create: CategoryCreate) -> Dict[str, Any]:
-        category_data = category_create.model_dump()
-        result = await self.collection.insert_one(category_data)
-        category_data["_id"] = result.inserted_id
-        return category_data
+    # truy vấn db lấy category theo id
+    async def get_by_category_id(self, category_id: str) -> Optional[Dict[str, Any]]:
+        category = await self.collection.find_one({"_id": ObjectId(category_id)})
+        return category
 
     # thao tác vs db để sửa category
     async def update_category(self, category_id: str, category_update: CategoryUpdate) -> Optional[Dict[str, Any]]:

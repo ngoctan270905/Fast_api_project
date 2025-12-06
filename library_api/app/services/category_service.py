@@ -9,11 +9,13 @@ class CategoryService:
     def __init__(self, category_repo: CategoryRepository):
         self.category_repo = category_repo
 
+
     # hàm map ObjectId sang str
     def _map_id(self, category_dict: dict) -> dict:
         if "_id" in category_dict:
             category_dict["id"] = str(category_dict.pop("_id"))
         return category_dict
+
 
     # Logic lấy ds category
     async def get_all_categories(self) -> List[CategoryResponse]:
@@ -27,13 +29,6 @@ class CategoryService:
 
         return categories
 
-    # Logic lấy category theo id
-    async def get_category(self, category_id: str) -> Optional[CategoryResponse]:
-        category_dict = await self.category_repo.get_by_category_id(category_id)
-        if not category_dict:
-            return None
-        mapped_category = self._map_id(category_dict)
-        return CategoryResponse(**mapped_category)
 
     # Logic thêm category
     async def create_category(self, category_create: CategoryCreate) -> CategoryResponse:
@@ -48,6 +43,19 @@ class CategoryService:
 
         return CategoryResponse(**mapped_category)
 
+
+    # Logic lấy category theo id
+    async def get_category(self, category_id: str) -> Optional[CategoryResponse]:
+        category_dict = await self.category_repo.get_by_category_id(category_id)
+        if not category_dict:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category không tồn tại"
+            )
+        mapped_category = self._map_id(category_dict)
+        return CategoryResponse(**mapped_category)
+
+
     # Logic sửa category
     async def update_category(self, category_id: str, category_update: CategoryUpdate) -> Optional[CategoryResponse]:
         existing_category = await self.get_category(category_id)
@@ -57,6 +65,7 @@ class CategoryService:
         mapped_category = self._map_id(updated_category_dict)
 
         return CategoryResponse(**mapped_category)
+
 
     # Logic xóa category
     async def delete_category(self, category_id: str) -> bool:

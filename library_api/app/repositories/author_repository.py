@@ -10,69 +10,47 @@ class AuthorRepository:
         self.db = mongodb_client.get_database()
         self.collection = self.db.get_collection("authors")
 
-    #
-    def _to_json(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        if data and "_id" in data:
-            data["id"] = str(data.pop("_id"))
-        return data
-    # tìm tac gia theo name
-    async def get_by_name(self, name: str) -> Optional[Dict[str, Any]]:
-        return await self.collection.find_one({"name": name})
 
-        # def db_call():
-        #     return self.collection.find_one({"name": name})
-        #
-        # author = await run_in_threadpool(db_call)
-        # return self._to_json(author)
-    # add tác giả
+    # truy vấn db lấy tất cả ds author
+    async def get_all(self) -> List[Dict[str, Any]]:
+        authors = []
+        async for author in self.collection.find():
+            authors.append(author)
+        return authors
+
+
+    # truy vấn db thêm authors
     async def create(self, author_create: AuthorCreate) -> Dict[str, Any]:
         author_data = author_create.model_dump()
+        result = await self.collection.insert_one(author_data)
+        author_data["id"] = result.inserted_id
+        return author_data
 
-        def db_call():
-            result = self.collection.insert_one(author_data)
-            return self.collection.find_one({"_id": result.inserted_id})
 
-        new_author = await run_in_threadpool(db_call)
-        return self._to_json(new_author)
-    # tìm theo id
+    # truy vấn db tìm tac gia theo name
+    async def get_author_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        author = await self.collection.find_one({"name": name})
+        return author
+
+
+    # truy vấn db để lấy tác giả theo id
     async def get_by_id(self, author_id: str) -> Optional[Dict[str, Any]]:
+        author = await self.collection.find_one({"_id":ObjectId(author_id)})
+        return author
 
-        def db_call():
-            return self.collection.find_one({"_id": ObjectId(author_id)})
 
-        author = await run_in_threadpool(db_call)
-        return self._to_json(author)
-
-    # lấy ds tất cả author
-    async def get_all(self) -> List[Dict[str, Any]]:
-        def db_call():
-            return list(self.collection.find())
-
-        authors = await run_in_threadpool(db_call)
-
-        return [self._to_json(author) for author in authors]
-
-    #update
+    # truy vấn db để update author
     async def update(self, author_id: str, author_update: AuthorUpdate) -> Optional[Dict[str, Any]]:
         update_data = author_update.model_dump(exclude_unset=True)
+        await self.collection.update_one(
+            {"_id": ObjectId(author_id)},
+            {"$set": update_data}
+        )
+        updated_author = await self.collection.find_one({"_id": ObjectId(author_id)})
+        return updated_author
 
-        def db_call():
 
-            self.collection.update_one(
-                {"_id": ObjectId(author_id)},
-                {"$set": update_data}
-            )
-            return self.collection.find_one({"_id": ObjectId(author_id)})
-
-        updated_author = await run_in_threadpool(db_call)
-        return self._to_json(updated_author)
-
-    #delete
+    # truy vấn db để xóa author
     async def delete(self, author_id: str) -> bool:
-
-        def db_call():
-
-            result = self.collection.delete_one({"_id": ObjectId(author_id)})
-            return result.deleted_count > 0
-
-        return await run_in_threadpool(db_call)
+        result = await self.collection.delete_one({"_id": ObjectId(author_id)})
+        return result.deleted_count > 0

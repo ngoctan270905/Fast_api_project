@@ -1,66 +1,66 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, Depends, HTTPException
 from typing import List
 from app.core.dependencies import DbSession
+from app.schemas.response import ResponseModel
 from app.services.author_service import AuthorService
 from app.schemas.author import AuthorCreate, AuthorUpdate, AuthorResponse
+from app.api.deps import get_author_service
 
 router = APIRouter()
 
+# GET lấy danh sách authors
 @router.get(
     "/",
-    response_model=List[AuthorResponse],
+    response_model=ResponseModel[List[AuthorResponse]],
     summary="Lấy danh sách tất cả tác giả"
 )
-# Lấy dữ liệu
-async def get_authors(db: DbSession):
-    service = AuthorService(db) # Khởi tạo instance
-    authors = await service.get_all_authors() # gọi đến service
-    return authors
+async def get_authors(service: AuthorService = Depends(get_author_service)):
+    authors = await service.get_all_authors()
+    return ResponseModel(data=authors, message="Lấy danh sách tác giả thành công")
 
 
-@router.get(
-    "/{author_id}",
-    response_model=AuthorResponse,
-    summary="Lấy chi tiết tác giả"
-)
-# Lấy chi tiết tác giả theo ID
-async def get_author(author_id: int, db: DbSession):
-    service = AuthorService(db) # Khởi tạo instance
-    author = await service.get_author_detail(author_id) # Gọi services kèm ID client gửi lên
-    return author
-
-
+# POST thêm author mới
 @router.post(
     "/",
-    response_model=AuthorResponse,
+    response_model=ResponseModel[AuthorResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Tạo author mới"
 )
-async def create_author(author_data: AuthorCreate, db: DbSession):
-    service = AuthorService(db)
-    new_author = await service.create_new_author(author_data)
-    return new_author
+async def create_author(author_data: AuthorCreate, service: AuthorService = Depends(get_author_service)):
+    new_author = await service.create_author(author_data)
+    return ResponseModel(data=new_author, message="Thêm tác giả thành công")
 
 
+# GET lấy chi tiết tác giả
+@router.get(
+    "/{author_id}",
+    response_model=ResponseModel[AuthorResponse],
+    summary="Lấy chi tiết tác giả"
+)
+# Lấy chi tiết tác giả theo ID
+async def get_author(author_id: str, service: AuthorService = Depends(get_author_service)):
+   author = await service.get_author(author_id)
+   if not author:
+       raise HTTPException(status_code=404, detail="Author not found")
+   return ResponseModel(data=author, message="Lấy thông tin thành công")
+
+
+# PUT update tác giả
 @router.put(
     "/{author_id}",
-    response_model=AuthorResponse,
+    response_model=ResponseModel[AuthorResponse],
     summary="Cập nhật author"
 )
 async def update_author(
-        author_id: int,
-        author_data: AuthorUpdate,
-        db: DbSession
+    author_id: str,
+    author_data: AuthorUpdate,
+    service: AuthorService = Depends(get_author_service)
 ):
-    """
-    Cập nhật thông tin author
-
-    - Tất cả fields đều optional
-    - Chỉ update các field được gửi lên
-    """
-    service = AuthorService(db)
     updated_author = await service.update_author(author_id, author_data)
-    return updated_author
+    if not updated_author:
+        raise HTTPException(status_code=404, detail="Author not found")
+    return ResponseModel(data=updated_author, message="Cập nhật author thành công")
+
 
 
 @router.delete(
@@ -68,11 +68,7 @@ async def update_author(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Xóa author"
 )
-async def delete_author(author_id: int, db: DbSession):
-    """
-    Xóa author
-
-    Note: Nếu author có books liên kết, cần xử lý trước khi xóa
-    """
-    service = AuthorService(db)
-    await service.delete_author(author_id)
+async def delete_author(author_id: str, service: AuthorService = Depends(get_author_service)):
+   deleted_author = await service.delete_author(author_id)
+   if not deleted_author:
+       raise HTTPException(status_code=404, detail="Author not found")
