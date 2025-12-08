@@ -1,15 +1,19 @@
-from typing import Optional, List
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional, List, Dict, Any
+
+from bson import ObjectId
 from sqlalchemy import select
 from app.models.users import User
-from app.models.oauth_account import OAuthAccount # Import OAuthAccount
-import uuid # For generating unique usernames if needed
+from app.models.oauth_account import OAuthAccount
+import uuid
+from app.core.mongo_database import mongodb_client
+from app.schemas.auth import UserRegister
+
 
 class UserRepository:
-    """Repository để xử lý các thao tác database với User (bất đồng bộ)"""
+    def __init__(self):
+        self.db = mongodb_client.get_database()
+        self.collection = self.db.get_collection("users")
 
-    def __init__(self, session: AsyncSession):
-        self.session = session
 
     async def get_by_id(self, user_id: int) -> Optional[User]:
         """Lấy user theo ID"""
@@ -17,31 +21,32 @@ class UserRepository:
         result = await self.session.execute(statement)
         return result.scalars().first()
 
-    async def get_by_username(self, username: str) -> Optional[User]:
-        """Lấy user theo username"""
-        statement = select(User).where(User.username == username)
-        result = await self.session.execute(statement)
-        return result.scalars().first()
 
-    async def get_by_email(self, email: str) -> Optional[User]:
-        """Lấy user theo email"""
-        statement = select(User).where(User.email == email)
-        result = await self.session.execute(statement)
-        return result.scalars().first()
+    # Truy vấn DB tìm name user
+    async def get_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+        user_name = await self.collection.find_one({"username": username})
+        return user_name
 
-    async def create(self, user: User) -> User:
-        """Tạo user mới"""
-        self.session.add(user)
-        await self.session.commit()
-        await self.session.refresh(user)
-        return user
 
-    async def update(self, user: User) -> User:
-        """Cập nhật user"""
-        self.session.add(user)
-        await self.session.commit()
-        await self.session.refresh(user)
-        return user
+    # Truy vấm DB tìm email user
+    async def get_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        user_email = await self.collection.find_one({"email": email})
+        return user_email
+
+
+    # Truy vấn DB thêm user
+    async def create(self, user_dict: Dict[str, Any]) -> Dict[str, Any]:
+        result = await self.collection.insert_one(user_dict)
+        user_dict["_id"] = result.inserted_id
+        return user_dict
+
+
+    # Truy vấn DB update user
+    async def update(self, user_id: str, user_data: Dict[str, Any]) -> Dict[str, Any]:
+        result = await self.collection.update_one({"_id": user_id}, {"$set": user_data})
+        updated_user = await self.collection.find_one({"_id": ObjectId(user_id)})
+        return updated_user
+
 
     async def delete(self, user: User) -> None:
         """Xóa user"""

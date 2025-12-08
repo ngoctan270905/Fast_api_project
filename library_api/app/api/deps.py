@@ -20,19 +20,21 @@ from app.services.category_service import CategoryService
 def get_category_repository() -> CategoryRepository:
     return CategoryRepository()
 
+
 # # Dependency để lấy AuthorRepository
 def get_author_repository() -> AuthorRepository:
     return AuthorRepository()
+
 
 # Dependency để lấy BookRepository
 def get_book_repository() -> BookRepository:
     return BookRepository()
 
+
 # Dependency để lấy UserRepository
-def get_user_repository(
-    session: Annotated[AsyncSession, Depends(get_session)]
-) -> UserRepository:
-    return UserRepository(session)
+def get_user_repository() -> UserRepository:
+    return UserRepository()
+
 
 # Dependency để lấy TokenRepository
 def get_token_repository(
@@ -40,11 +42,13 @@ def get_token_repository(
 ) -> TokenRepository:
     return TokenRepository(session)
 
+
 # Dependency để lấy AuthService
 def get_auth_service(
     user_repo: Annotated[UserRepository, Depends(get_user_repository)]
 ) -> AuthService:
     return AuthService(user_repo)
+
 
 # Dependency để lấy TokenService
 def get_token_service(
@@ -52,21 +56,24 @@ def get_token_service(
 ) -> TokenService:
     return TokenService(token_repo)
 
+
 # Dependency để lấy UserService
 def get_user_service(
-        user_repo: Annotated[UserRepository, Depends(get_user_repository)],
-        session: Annotated[AsyncSession, Depends(get_session)]
+    user_repo: Annotated[UserRepository, Depends(get_user_repository)]
 ) -> UserService:
-    return UserService(user_repo=user_repo, db_session=session)
+    return UserService(user_repo=user_repo)
+
 
 # Dependency để lấy CategoryService
 def get_category_service() -> CategoryService:
     category_repo = get_category_repository()
     return CategoryService(category_repo=category_repo)
 
+
 def get_author_service() -> AuthorService:
     author_repo = get_author_repository()
     return AuthorService(author_repo=author_repo)
+
 
 def get_book_service() -> BookService:
     book_repo = get_book_repository()

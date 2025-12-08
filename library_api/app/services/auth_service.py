@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 import redis.asyncio as redis
@@ -21,10 +22,15 @@ from app.services.token_service import TokenService
 from app.core.config import settings
 
 class AuthService:
-    """Service for handling authentication business logic (async)."""
+
 
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
+
+    def _map_id(self, user_dict: dict) -> dict:
+        if "_id" in user_dict:
+            user_dict["id"] = str(user_dict.pop("_id"))
+        return user_dict
 
     async def handle_google_oauth(self, request: Request) -> str:
         """
@@ -154,72 +160,77 @@ class AuthService:
                 detail=f"Facebook authentication failed: {e}"
             )
 
+
+    # Logic đăng kí tài khoản
     async def register(self, user_data: UserRegister, background_tasks: BackgroundTasks) -> UserResponse:
-        """
-        Registers a new user, sets them as inactive, and sends a verification email.
-        """
-        if await self.user_repo.get_by_username(user_data.username):
+        existing_username = await self.user_repo.get_by_username(user_data.username)
+        if existing_username:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already exists"
+                detail=f"User '{user_data.username}' đã tồn tại"
             )
-
-        if await self.user_repo.get_by_email(user_data.email):
+        existing_email = await self.user_repo.get_by_email(str(user_data.email))
+        if existing_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already exists"
+                detail=f"Email '{user_data.email}' đã ồn tại"
             )
 
-        new_user = User(
-            username=user_data.username,
-            email=user_data.email,
-            hashed_password=hash_password(user_data.password),
-            is_active=False  # User is inactive until email is verified
-        )
-        created_user = await self.user_repo.create(new_user)
+        new_user_dict = {
+            "username": user_data.username,
+            "email": str(user_data.email),
+            "hashed_password": hash_password(user_data.password),
+            "is_active": False,
+            "role": "user",
+            "email_verified": False,
+            "is_social_login": False,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+
+        created_user = await self.user_repo.create(new_user_dict)
 
         verification_token = create_scoped_token(
-            subject=created_user.email,
+            subject=created_user["email"],
             scope="email_verification",
-            expires_in_minutes=60 * 24  # 24 hours
+            expires_in_minutes=60
         )
-        # await send_verification_email(
-        #     email_to=created_user.email,
-        #     token=verification_token
-        # )
 
         background_tasks.add_task(
             send_verification_email,
-            email_to=created_user.email,
+            email_to=created_user["email"],
             token=verification_token,
         )
 
-        return UserResponse.model_validate(created_user)
+        mapped_user = self._map_id(created_user)
+        return UserResponse(**mapped_user)
 
+
+    # Logic xác minh email
     async def verify_email(self, token: str) -> UserResponse:
-        """
-        Verifies a user's email address from a token.
-        """
         email = await verify_scoped_token(token, required_scope="email_verification")
         
         user = await self.user_repo.get_by_email(email)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                detail="User không tồn tại"
             )
         
-        if user.email_verified:
+        if user.get("email_verified"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already verified"
+                detail="Email đã được xác minh!"
             )
-            
-        user.is_active = True
-        user.email_verified = True
-        updated_user = await self.user_repo.update(user)
-        
-        return UserResponse.model_validate(updated_user)
+
+        update_data = {
+            "is_active": True,
+            "email_verified": True
+        }
+        updated_user = await self.user_repo.update(user["_id"], update_data)
+        mapped_user = self._map_id(updated_user)
+        return UserResponse(**mapped_user)
+
 
     async def forgot_password(self, email: str, background_tasks: BackgroundTasks):
         """

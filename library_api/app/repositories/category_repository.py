@@ -1,6 +1,5 @@
 from typing import Optional, List, Dict, Any
 from bson import ObjectId
-from fastapi.concurrency import run_in_threadpool
 from app.core.mongo_database import mongodb_client
 from app.schemas.category import CategoryCreate, CategoryUpdate
 
@@ -21,7 +20,7 @@ class CategoryRepository:
         category_data = category_create.model_dump()
         result = await self.collection.insert_one(category_data)
         category_data["_id"] = result.inserted_id
-        return
+        return category_data
 
     # truy vấn db lấy category theo name
     async def get_category_by_name(self, name: str) -> Optional[Dict[str, Any]]:

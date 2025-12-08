@@ -1,4 +1,3 @@
-# app/api/v1/endpoints/auth.py
 from typing import Annotated, Optional
 
 import redis.asyncio as redis
@@ -19,36 +18,32 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     ResetPasswordRequest
 )
+from app.schemas.response import ResponseModel
 from app.services.auth_service import AuthService
 from app.services.token_service import TokenService
 
 router = APIRouter()
 
 # ==================== REGISTER ====================
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=ResponseModel[UserResponse], status_code=status.HTTP_201_CREATED)
 async def register(
         user_data: UserRegister,
         background_tasks: BackgroundTasks,
         auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ):
-    """
-    Register a new user.
-    - Creates an inactive user.
-    - Sends a verification email.
-    - Does NOT return a login token.
-    """
-    return await auth_service.register(user_data, background_tasks)
+    user_register = await auth_service.register(user_data, background_tasks)
+    return ResponseModel(data=user_register, message="Đăng ký user thành công")
 
 # ==================== VERIFY EMAIL ====================
-@router.post("/verify-email", response_model=UserResponse)
+@router.post("/verify-email", response_model=ResponseModel[UserResponse])
 async def verify_email(
     request: EmailVerificationRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ):
-    """
-    Verify a user's email address with a token sent to their email.
-    """
-    return await auth_service.verify_email(request.token)
+    user_verify_email = await auth_service.verify_email(request.token)
+    return ResponseModel(data=user_verify_email, message="Xác thực email thành công")
+
+    # return await auth_service.verify_email(request.token)
 
 # ==================== FORGOT/RESET PASSWORD ====================
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
