@@ -1,206 +1,150 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Dict, Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi import HTTPException, status
+from unicodedata import category
+
+from app.repositories.author_repository import AuthorRepository
 from app.repositories.book_repository import BookRepository
 from app.models.book import Book
-from app.schemas.book import BookCreate, BookUpdate
+from app.repositories.category_repository import CategoryRepository
+from app.repositories.author_repository import AuthorRepository
+from app.schemas.book import BookCreate, BookUpdate, BookResponse, AuthorInBook, CategoryInBook
 
 
 class BookService:
 
     # Hàm khởi tạo
-    def __init__(self, db: AsyncSession):
-        self.repository = BookRepository(db)
-
-    # Hàm lấy danh sách book
-    async def get_books_list(self,
-            available: bool = None,
-            search: str = None,
-            page: int = 1,
-            page_size: int = 10
-    ) -> Tuple[List[Book], int, int]: # set type hint để nhập kiểu dữ liệu trả về là tuple
-
-        if page < 1: # nếu số trang < 1 tự động gán = 1, còn k thì gán tự động
-            page = 1
-        if page_size < 1: # nếu page_size ( số sách trong trang ) < 1 tự động bán = 10, ... )
-            page_size = 10
-        if page_size > 100: # nếu page_size ( số sách trong trang ) > 100 tự động bán = 100, ... )
-            page_size = 100
-
-        # Tính skip
-        skip = (page - 1) * page_size
-
-        # Gọi method trong reponsitory để lấy danh sách book
-        books = await self.repository.get_all_books(
-            available=available,
-            search=search,
-            skip=skip,
-            limit=page_size
-        )
-
-        # Gọi method trong reponsitory để tính tổng book
-        total = await self.repository.count_books(
-            available=available,
-            search=search
-        )
-
-        return books, total, page
+    def __init__(self, book_repo: BookRepository, author_repo: AuthorRepository, category_repo: CategoryRepository):
+        self.book_repo = book_repo
+        self.author_repo = author_repo
+        self.category_repo = category_repo
 
 
-    async def get_book_detail(self, book_id: int) -> Book:
-        """
-        Lấy chi tiết 1 cuốn sách (ASYNC)
-        Raise 404 nếu không tìm thấy
-        """
-        book = await self.repository.get_book_by_id(book_id)
+    # hàm map ObjectId sang str
+    def map_id(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if '_id' in data:
+            data['id'] = str(data['_id'])
+            del data['_id']
+        return data
 
-        if not book:
+
+    # logic lấy ds book kèm quan hệ author và category
+    async def get_all_books(self) -> List[BookResponse]:
+        books_list_dict = await self.book_repo.get_all()
+
+        books = []
+        for book_dict in books_list_dict:
+            book_data = self.map_id(book_dict)
+
+            # lấy thông tin category
+            if book_data.get('category_id'):
+                category_dict = await self.category_repo.get_by_category_id(book_data['category_id'])
+                if category_dict:
+                    category_data = self.map_id(category_dict)
+                    book_data['category'] = CategoryInBook(
+                        id=category_data['id'],
+                        name=category_data['name']
+                    )
+
+            # lấy thông tin authors
+            if book_data.get('author_ids'):
+                authors = []
+                for author_id in book_data['author_ids']:
+                    author_dict = await self.author_repo.get_by_id(author_id)
+                    if author_dict:
+                        author_data = self.map_id(author_dict)
+                        authors.append(AuthorInBook(
+                            id=author_data['id'],
+                            name=author_data['name']
+                        ))
+                book_data['authors'] = authors
+
+            book_response = BookResponse(**book_data)
+            books.append(book_response)
+
+        return books
+
+
+    # Logic thêm book mới
+    async def create_new_book(self, book_create: BookCreate) -> BookResponse:
+        existing_book = await self.book_repo.get_book_by_name(book_create.title)
+        if existing_book:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Không tìm thấy sách với id={book_id}"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Book '{book_create.title}' đã tồn tại"
             )
-
-        return book
-
-    # ============================================
-    # CREATE BOOK
-    # ============================================
-
-    async def create_new_book(self, book_data: BookCreate) -> Book:
-        """
-        Tạo sách mới (ASYNC)
-
-        Logic nghiệp vụ:
-        1. Validate category_id có tồn tại
-        2. Validate tất cả author_ids có tồn tại
-        3. Tạo Book object
-        4. Gán authors vào book
-        5. Lưu vào DB
-
-        Raises:
-            HTTPException 404: Nếu category hoặc author không tồn tại
-        """
-        # 1. Kiểm tra category có tồn tại (ASYNC)
-        category = await self.repository.get_category_by_id(book_data.category_id)
-        if not category:
+        category_dict = await self.category_repo.get_by_category_id(book_create.category_id)
+        if not category_dict:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Không tìm thấy category với id={book_data.category_id}"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Category '{book_create.category_id}' không tồn tại"
             )
-
-        # 2. Kiểm tra tất cả authors có tồn tại (ASYNC)
-        authors = await self.repository.get_authors_by_ids(book_data.author_ids)
-
-        # So sánh số lượng: nếu thiếu author => raise error
-        if len(authors) != len(book_data.author_ids):
-            found_ids = {a.id for a in authors}
-            requested_ids = set(book_data.author_ids)
-            missing_ids = requested_ids - found_ids
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Không tìm thấy authors với ids: {list(missing_ids)}"
-            )
-
-        # 3. Tạo Book object
-        new_book = Book(
-            title=book_data.title,
-            category_id=book_data.category_id,
-            published_date=book_data.published_date,
-            is_available=book_data.is_available
-        )
-
-        # 4. Gán authors vào book (many-to-many relationship)
-        new_book.authors = authors
-
-        # 5. Lưu vào DB (ASYNC)
-        created_book = await self.repository.create_book(new_book)
-
-        return created_book
-
-    # ============================================
-    # UPDATE BOOK
-    # ============================================
-
-    async def update_book(self, book_id: int, book_data: BookUpdate) -> Book:
-        """
-        Update thông tin sách (ASYNC)
-
-        Logic:
-        1. Kiểm tra book có tồn tại
-        2. Validate category_id nếu có update
-        3. Validate author_ids nếu có update
-        4. Update các field
-        5. Lưu vào DB
-        """
-        # 1. Lấy book hiện tại (ASYNC)
-        book = await self.repository.get_book_by_id(book_id)
-        if not book:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Không tìm thấy sách với id={book_id}"
-            )
-
-        # 2. Validate category_id nếu có update (ASYNC)
-        if book_data.category_id is not None:
-            category = await self.repository.get_category_by_id(book_data.category_id)
-            if not category:
+        authors_list = []
+        for author_id in book_create.author_ids:
+            author_dict = await self.author_repo.get_by_id(author_id)
+            if not author_dict:
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Không tìm thấy category với id={book_data.category_id}"
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Author '{author_id}' không tồn tại"
                 )
-            book.category_id = book_data.category_id
+            authors_list.append(AuthorInBook(
+                id=str(author_dict['_id']),
+                name=author_dict['name']
+            ))
+        new_book_dict = await self.book_repo.create_book(book_create)
+        book_data = self.map_id(new_book_dict)
 
-        # 3. Validate author_ids nếu có update (ASYNC)
-        if book_data.author_ids is not None:
-            authors = await self.repository.get_authors_by_ids(book_data.author_ids)
-            if len(authors) != len(book_data.author_ids):
-                found_ids = {a.id for a in authors}
-                requested_ids = set(book_data.author_ids)
-                missing_ids = requested_ids - found_ids
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Không tìm thấy authors với ids: {list(missing_ids)}"
-                )
-            book.authors = authors
+        book_data['category'] = CategoryInBook(
+            id=str(category_dict['_id']),
+            name=category_dict['name']
+        )
+        book_data['authors'] = authors_list
+        return BookResponse(**book_data)
 
-        # 4. Update các field khác
-        if book_data.title is not None:
-            book.title = book_data.title
-        if book_data.published_date is not None:
-            book.published_date = book_data.published_date
-        if book_data.is_available is not None:
-            book.is_available = book_data.is_available
 
-        # 5. Lưu vào DB (ASYNC)
-        updated_book = await self.repository.update_book(book)
-
-        return updated_book
-
-    async def update_book_cover_image_url(self, book_id: int, image_url: str) -> Book:
-        """
-        Update the cover image URL for a book (ASYNC)
-        """
-        book = await self.repository.get_book_by_id(book_id)
-        if not book:
+    # Logic xem chi tiết book
+    async def get_book_detail(self, book_id: str) -> Optional[BookResponse]:
+        book_dict = await self.book_repo.get_by_book_id(book_id)
+        if not book_dict:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Không tìm thấy sách với id={book_id}"
-            )
-        
-        updated_book = await self.repository.update_book_cover_image_url(book_id, image_url)
-        return updated_book
-
-    # ============================================
-    # DELETE BOOK
-    # ============================================
-
-    async def delete_book(self, book_id: int) -> None:
-        """Xóa sách (ASYNC)"""
-        book = await self.repository.get_book_by_id(book_id)
-        if not book:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Không tìm thấy sách với id={book_id}"
+                detail=f"Book không tồn tại"
             )
 
-        await self.repository.delete_book(book)
+        book_data = self.map_id(book_dict)
+        if book_data.get('category_id'):
+            category_dict = await self.category_repo.get_by_category_id(book_data['category_id'])
+            if category_dict:
+                category_data = self.map_id(category_dict)
+                book_data['category'] = CategoryInBook(
+                    id=category_data['id'],
+                    name=category_data['name']
+                )
+        if book_data.get('author_ids'):
+            authors = []
+            for author_id in book_data['author_ids']:
+                author_dict = await self.author_repo.get_by_id(author_id)
+                if author_dict:
+                    author_data = self.map_id(author_dict)
+                    authors.append(AuthorInBook(
+                        id=author_data['id'],
+                        name=author_data['name']
+                    ))
+            book_data['authors'] = authors
+        return BookResponse(**book_data)
+
+
+    # Logic update book
+    async def update_book(self, book_id: str, book_update: BookUpdate) -> Optional[BookResponse]:
+        existing_book = await self.book_repo.get_by_book_id(book_id)
+        if not existing_book:
+            return None
+        updated_book_dict = await self.book_repo.update_book(book_id, book_update)
+        book_data = self.map_id(updated_book_dict)
+        return BookResponse(**book_data)
+
+
+   # Logic delete Book
+    async def delete_book(self, book_id: str) -> bool:
+        deleted_book = await self.book_repo.delete_book(book_id)
+        return deleted_book

@@ -5,11 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.repositories.author_repository import AuthorRepository
+from app.repositories.book_repository import BookRepository
 from app.repositories.user_repository import UserRepository
 from app.repositories.token_repository import TokenRepository
 from app.repositories.category_repository import CategoryRepository
 from app.services.auth_service import AuthService
 from app.services.author_service import AuthorService
+from app.services.book_service import BookService
 from app.services.user_service import UserService
 from app.services.token_service import TokenService
 from app.services.category_service import CategoryService
@@ -21,6 +23,10 @@ def get_category_repository() -> CategoryRepository:
 # # Dependency để lấy AuthorRepository
 def get_author_repository() -> AuthorRepository:
     return AuthorRepository()
+
+# Dependency để lấy BookRepository
+def get_book_repository() -> BookRepository:
+    return BookRepository()
 
 # Dependency để lấy UserRepository
 def get_user_repository(
@@ -61,3 +67,9 @@ def get_category_service() -> CategoryService:
 def get_author_service() -> AuthorService:
     author_repo = get_author_repository()
     return AuthorService(author_repo=author_repo)
+
+def get_book_service() -> BookService:
+    book_repo = get_book_repository()
+    category_repo = get_category_repository()
+    author_repo = get_author_repository()
+    return BookService(book_repo=book_repo, category_repo=category_repo, author_repo=author_repo)
