@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import redis.asyncio as redis
@@ -24,8 +24,9 @@ from app.core.config import settings
 class AuthService:
 
 
-    def __init__(self, user_repo: UserRepository):
+    def __init__(self, user_repo: UserRepository, token_service: TokenService):
         self.user_repo = user_repo
+        self.token_service = token_service
 
     def _map_id(self, user_dict: dict) -> dict:
         if "_id" in user_dict:
@@ -184,8 +185,8 @@ class AuthService:
             "role": "user",
             "email_verified": False,
             "is_social_login": False,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         }
 
         created_user = await self.user_repo.create(new_user_dict)
@@ -232,53 +233,42 @@ class AuthService:
         return UserResponse(**mapped_user)
 
 
+    # Logic quên mật khẩu
     async def forgot_password(self, email: str, background_tasks: BackgroundTasks):
-        """
-        Handles the forgot password request.
-        Finds the user, generates a reset token, and sends an email.
-        Does not raise an error for non-existent emails to prevent email enumeration attacks.
-        """
         user = await self.user_repo.get_by_email(email)
         if user:
-            # Create a password reset token that is short-lived
             password_reset_token = create_scoped_token(
-                subject=user.email,
+                subject=user['email'],
                 scope="password_reset",
-                expires_in_minutes=15  # 15 minutes expiry
+                expires_in_minutes=15
             )
-
-            # await send_password_reset_email(
-            #     email_to=user.email,
-            #     token=password_reset_token
-            # )
-
             background_tasks.add_task(
                 send_password_reset_email,
-                email_to=user.email,
+                email_to=user['email'],
                 token=password_reset_token,
             )
-        # Always return a success message to the user
         return {"message": "Đã gửi link khôi phục mật khẩu, vui lòng kiểm tra email"}
 
+
+    # Logic reset mật khẩu
     async def reset_password(self, token: str, new_password: str) -> UserResponse:
-        """
-        Resets a user's password using a valid token.
-        """
-        email = verify_scoped_token(token, required_scope="password_reset")
+        email = await verify_scoped_token(token, required_scope="password_reset")
         
-        user = await self.user_repo.get_by_email(email)
+        user = await self.user_repo.get_by_email(str(email))
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
         
-        user.hashed_password = hash_password(new_password)
-        updated_user = await self.user_repo.update(user)
-        
-        return UserResponse.model_validate(updated_user)
+        hashed_password = hash_password(new_password)
+        user['hashed_password'] = hashed_password
+        updated_user = await self.user_repo.update(user['_id'], {'hashed_password': hashed_password})
+        mapped_user = self._map_id(updated_user)
+        return UserResponse(**mapped_user)
 
-    # hàm xử lí logic đăng nhập
+
+    # Logic đăng nhập
     async def login(self, *, response: Response, token_service: TokenService, username: str, password: str) -> Token:
         user = await self.user_repo.get_by_username(username)
         if not user:
@@ -286,24 +276,24 @@ class AuthService:
         # tạo biến trước để kiểm tra mật khẩu là False
         is_password_correct = False
         if user:
-            is_password_correct = verify_password(password, user.hashed_password)
+            is_password_correct = verify_password(password, user['hashed_password'])
         # nếu user ko tồn tại hoặc password sai => 401
         if not user or not is_password_correct:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username/email or password",
+                detail="Sai tài khoản hoặc mật khẩu",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         # kiểm tra trạng thái hoạt động trước khi login
-        if not user.is_active:
+        if not user['is_active']:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Inactive user. Please verify your email first."
+                detail="Vui lòng xác minh email"
             )
         # Nếu user tồn tại, mật khẩu đúng, đang active
         # Thì gọi hàm create_access_token ở security.py để tạo access token
         access_token = create_access_token(
-            data={"sub": str(user.id), "username": user.username}
+            data={"sub": str(user['_id']), "username": user['username']}
         )
         # Gọi tiếp services để xử lí thêm refresh_token
         refresh_token = await token_service.create_refresh_token(user=user)
@@ -319,6 +309,39 @@ class AuthService:
         )
 
         return Token(access_token=access_token)
+
+    async def refresh_user_tokens(self, refresh_token: Optional[str], response: Response) -> Token:
+        if not refresh_token:
+            raise HTTPException(401, "Refresh token not found")
+
+        # Verify refresh token
+        user_id = await self.token_service.verify_refresh_token(refresh_token)
+
+        # Revoke old token (rotation)
+        await self.token_service.revoke_refresh_token(refresh_token)
+
+        # Get user dict
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(401, "Could not find user")
+
+        # Create new tokens
+        new_access_token = create_access_token(
+            data={"sub": str(user['_id']), "username": user['username']}
+        )
+        new_refresh_token = await self.token_service.create_refresh_token(user=user)
+
+        # Set cookie
+        response.set_cookie(
+            key="refresh_token",
+            value=new_refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=30 * 24 * 60 * 60
+        )
+
+        return Token(access_token=new_access_token)
 
     # hàm xử lí logic đăng xuất
     async def logout(

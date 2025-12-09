@@ -37,17 +37,8 @@ def get_user_repository() -> UserRepository:
 
 
 # Dependency để lấy TokenRepository
-def get_token_repository(
-    session: Annotated[AsyncSession, Depends(get_session)]
-) -> TokenRepository:
-    return TokenRepository(session)
-
-
-# Dependency để lấy AuthService
-def get_auth_service(
-    user_repo: Annotated[UserRepository, Depends(get_user_repository)]
-) -> AuthService:
-    return AuthService(user_repo)
+def get_token_repository() -> TokenRepository:
+    return TokenRepository()
 
 
 # Dependency để lấy TokenService
@@ -55,6 +46,14 @@ def get_token_service(
     token_repo: Annotated[TokenRepository, Depends(get_token_repository)]
 ) -> TokenService:
     return TokenService(token_repo)
+
+
+# Dependency để lấy AuthService
+def get_auth_service(
+    user_repo: Annotated[UserRepository, Depends(get_user_repository)],
+    token_service: Annotated[TokenService, Depends(get_token_service)],
+) -> AuthService:
+    return AuthService(user_repo, token_service)
 
 
 # Dependency để lấy UserService

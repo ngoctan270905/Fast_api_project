@@ -14,13 +14,9 @@ class UserRepository:
         self.db = mongodb_client.get_database()
         self.collection = self.db.get_collection("users")
 
-
-    async def get_by_id(self, user_id: int) -> Optional[User]:
-        """Lấy user theo ID"""
-        statement = select(User).where(User.id == user_id)
-        result = await self.session.execute(statement)
-        return result.scalars().first()
-
+    async def get_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        user = await self.collection.find_one({"_id": ObjectId(user_id)})
+        return user
 
     # Truy vấn DB tìm name user
     async def get_by_username(self, username: str) -> Optional[Dict[str, Any]]:
