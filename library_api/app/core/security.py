@@ -17,9 +17,11 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
+
 # Hàm xác minh mật khẩu với password và hash_password
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
+
 
 # hàm tạo access token
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -39,6 +41,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
+
+# hàm tạo token dùng 1 lần
 def create_scoped_token(subject: str, scope: str, expires_in_minutes: int) -> str:
     """
     Creates a generic JWT with a specific subject and scope.
@@ -52,6 +56,7 @@ def create_scoped_token(subject: str, scope: str, expires_in_minutes: int) -> st
     }
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
+
 
 # Hàm xác thực JWT: signature, expiry, scope, blacklist
 async def verify_scoped_token(

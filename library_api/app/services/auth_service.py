@@ -1,11 +1,11 @@
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Optional, Dict, Any
 
 import redis.asyncio as redis
 import time
 from jose import jwt, JWTError
 from app.services.blacklist_service import BlacklistService
 from fastapi import HTTPException, status, Request, Response, BackgroundTasks
-from app.models.users import User
 from app.schemas.auth import UserRegister, Token, UserResponse
 from app.repositories.user_repository import UserRepository
 from app.core.security import (
@@ -21,18 +21,20 @@ from app.services.token_service import TokenService
 from app.core.config import settings
 
 class AuthService:
-    """Service for handling authentication business logic (async)."""
 
-    def __init__(self, user_repo: UserRepository):
+
+    def __init__(self, user_repo: UserRepository, token_service: TokenService):
         self.user_repo = user_repo
+        self.token_service = token_service
+
+    def _map_id(self, user_dict: dict) -> dict:
+        if "_id" in user_dict:
+            user_dict["id"] = str(user_dict.pop("_id"))
+        return user_dict
 
     async def handle_google_oauth(self, request: Request) -> str:
-        """
-        Handles the Google OAuth callback, creates/updates the user, and returns a JWT.
-        """
         try:
             token = await oauth.google.authorize_access_token(request)
-            # Use the userinfo endpoint to get user profile, it's more reliable
             user_info = await oauth.google.userinfo(token=token)
 
             email = user_info.get('email')
@@ -51,47 +53,45 @@ class AuthService:
                 email=email,
                 username=name or email.split('@')[0]
             )
-            
+
             access_token = create_access_token(
-                data={"sub": str(user.id), "username": user.username}
+                data={
+                    "sub": str(user["_id"]),
+                    "username": user["username"]
+                }
             )
-            
+
             return access_token
+
         except Exception as e:
-            # Consider logging the error
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Authentication failed: {e}"
+                detail=f"Authentication failed: {str(e)}"
             )
 
     async def handle_github_oauth(self, request: Request) -> str:
-        """
-        Handles the GitHub OAuth callback, creates/updates the user, and returns a JWT.
-        """
         try:
             token = await oauth.github.authorize_access_token(request)
             resp = await oauth.github.get('user', token=token)
             resp.raise_for_status()
             user_info = resp.json()
 
-            # GitHub may not provide a public email, so we need to check
             email = user_info.get('email')
             if not email:
-                # If primary email is null, fetch all user emails
                 email_resp = await oauth.github.get('user/emails', token=token)
                 email_resp.raise_for_status()
                 emails = email_resp.json()
-                primary_email_obj = next((e for e in emails if e['primary']), None)
-                if primary_email_obj:
-                    email = primary_email_obj['email']
-            
+                primary_email = next((e for e in emails if e['primary']), None)
+                if primary_email:
+                    email = primary_email['email']
+
             github_account_id = str(user_info.get('id'))
             name = user_info.get('name') or user_info.get('login')
 
             if not email or not github_account_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Could not retrieve essential user information from GitHub."
+                    detail="Could not retrieve essential user info from GitHub."
                 )
 
             user = await self.user_repo.find_or_create_by_oauth(
@@ -100,23 +100,23 @@ class AuthService:
                 email=email,
                 username=name
             )
-            
+
             access_token = create_access_token(
-                data={"sub": str(user.id), "username": user.username}
+                data={
+                    "sub": str(user["_id"]),
+                    "username": user["username"]
+                }
             )
-            
+
             return access_token
+
         except Exception as e:
-            # Consider logging the error
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"GitHub authentication failed: {e}"
+                detail=f"GitHub authentication failed: {str(e)}"
             )
 
     async def handle_facebook_oauth(self, request: Request) -> str:
-        """
-        Handles the Facebook OAuth callback, creates/updates the user, and returns a JWT.
-        """
         try:
             token = await oauth.facebook.authorize_access_token(request)
             resp = await oauth.facebook.get(
@@ -124,8 +124,8 @@ class AuthService:
                 token=token
             )
             resp.raise_for_status()
-            user_info = resp.json()
 
+            user_info = resp.json()
             facebook_account_id = user_info.get('id')
             email = user_info.get('email')
             name = user_info.get('name')
@@ -133,7 +133,7 @@ class AuthService:
             if not email or not facebook_account_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Could not retrieve essential user information from Facebook."
+                    detail="Could not retrieve essential user info from Facebook."
                 )
 
             user = await self.user_repo.find_or_create_by_oauth(
@@ -142,132 +142,129 @@ class AuthService:
                 email=email,
                 username=name or email.split('@')[0]
             )
-            
+
             access_token = create_access_token(
-                data={"sub": str(user.id), "username": user.username}
+                data={
+                    "sub": str(user["_id"]),
+                    "username": user["username"]
+                }
             )
-            
+
             return access_token
+
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Facebook authentication failed: {e}"
+                detail=f"Facebook authentication failed: {str(e)}"
             )
 
+    # Logic đăng kí tài khoản
     async def register(self, user_data: UserRegister, background_tasks: BackgroundTasks) -> UserResponse:
-        """
-        Registers a new user, sets them as inactive, and sends a verification email.
-        """
-        if await self.user_repo.get_by_username(user_data.username):
+        existing_username = await self.user_repo.get_by_username(user_data.username)
+        if existing_username:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already exists"
+                detail=f"User '{user_data.username}' đã tồn tại"
             )
-
-        if await self.user_repo.get_by_email(user_data.email):
+        existing_email = await self.user_repo.get_by_email(str(user_data.email))
+        if existing_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already exists"
+                detail=f"Email '{user_data.email}' đã ồn tại"
             )
 
-        new_user = User(
-            username=user_data.username,
-            email=user_data.email,
-            hashed_password=hash_password(user_data.password),
-            is_active=False  # User is inactive until email is verified
-        )
-        created_user = await self.user_repo.create(new_user)
+        new_user_dict = {
+            "username": user_data.username,
+            "email": str(user_data.email),
+            "hashed_password": hash_password(user_data.password),
+            "is_active": False,
+            "role": "user",
+            "email_verified": False,
+            "is_social_login": False,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+        }
+
+        created_user = await self.user_repo.create(new_user_dict)
 
         verification_token = create_scoped_token(
-            subject=created_user.email,
+            subject=created_user["email"],
             scope="email_verification",
-            expires_in_minutes=60 * 24  # 24 hours
+            expires_in_minutes=60
         )
-        # await send_verification_email(
-        #     email_to=created_user.email,
-        #     token=verification_token
-        # )
 
         background_tasks.add_task(
             send_verification_email,
-            email_to=created_user.email,
+            email_to=created_user["email"],
             token=verification_token,
         )
 
-        return UserResponse.model_validate(created_user)
+        mapped_user = self._map_id(created_user)
+        return UserResponse(**mapped_user)
 
+
+    # Logic xác minh email
     async def verify_email(self, token: str) -> UserResponse:
-        """
-        Verifies a user's email address from a token.
-        """
         email = await verify_scoped_token(token, required_scope="email_verification")
         
         user = await self.user_repo.get_by_email(email)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                detail="User không tồn tại"
             )
         
-        if user.email_verified:
+        if user.get("email_verified"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already verified"
+                detail="Email đã được xác minh!"
             )
-            
-        user.is_active = True
-        user.email_verified = True
-        updated_user = await self.user_repo.update(user)
-        
-        return UserResponse.model_validate(updated_user)
 
+        update_data = {
+            "is_active": True,
+            "email_verified": True
+        }
+        updated_user = await self.user_repo.update(user["_id"], update_data)
+        mapped_user = self._map_id(updated_user)
+        return UserResponse(**mapped_user)
+
+
+    # Logic quên mật khẩu
     async def forgot_password(self, email: str, background_tasks: BackgroundTasks):
-        """
-        Handles the forgot password request.
-        Finds the user, generates a reset token, and sends an email.
-        Does not raise an error for non-existent emails to prevent email enumeration attacks.
-        """
         user = await self.user_repo.get_by_email(email)
         if user:
-            # Create a password reset token that is short-lived
             password_reset_token = create_scoped_token(
-                subject=user.email,
+                subject=user['email'],
                 scope="password_reset",
-                expires_in_minutes=15  # 15 minutes expiry
+                expires_in_minutes=15
             )
-
-            # await send_password_reset_email(
-            #     email_to=user.email,
-            #     token=password_reset_token
-            # )
-
             background_tasks.add_task(
                 send_password_reset_email,
-                email_to=user.email,
+                email_to=user['email'],
                 token=password_reset_token,
             )
-        # Always return a success message to the user
         return {"message": "Đã gửi link khôi phục mật khẩu, vui lòng kiểm tra email"}
 
+
+    # Logic reset mật khẩu
     async def reset_password(self, token: str, new_password: str) -> UserResponse:
-        """
-        Resets a user's password using a valid token.
-        """
-        email = verify_scoped_token(token, required_scope="password_reset")
+        email = await verify_scoped_token(token, required_scope="password_reset")
         
-        user = await self.user_repo.get_by_email(email)
+        user = await self.user_repo.get_by_email(str(email))
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
         
-        user.hashed_password = hash_password(new_password)
-        updated_user = await self.user_repo.update(user)
-        
-        return UserResponse.model_validate(updated_user)
+        hashed_password = hash_password(new_password)
+        user['hashed_password'] = hashed_password
+        updated_user = await self.user_repo.update(user['_id'], {'hashed_password': hashed_password})
+        mapped_user = self._map_id(updated_user)
+        return UserResponse(**mapped_user)
 
-    # hàm xử lí logic đăng nhập
+
+    # Logic đăng nhập
     async def login(self, *, response: Response, token_service: TokenService, username: str, password: str) -> Token:
         user = await self.user_repo.get_by_username(username)
         if not user:
@@ -275,24 +272,24 @@ class AuthService:
         # tạo biến trước để kiểm tra mật khẩu là False
         is_password_correct = False
         if user:
-            is_password_correct = verify_password(password, user.hashed_password)
+            is_password_correct = verify_password(password, user['hashed_password'])
         # nếu user ko tồn tại hoặc password sai => 401
         if not user or not is_password_correct:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username/email or password",
+                detail="Sai tài khoản hoặc mật khẩu",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         # kiểm tra trạng thái hoạt động trước khi login
-        if not user.is_active:
+        if not user['is_active']:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Inactive user. Please verify your email first."
+                detail="Vui lòng xác minh email"
             )
-        # Nếu user tồn tại, mật khẩu đúng, đang active
+        # Nếu user tồn tại, mật khẩu đúng
         # Thì gọi hàm create_access_token ở security.py để tạo access token
         access_token = create_access_token(
-            data={"sub": str(user.id), "username": user.username}
+            data={"sub": str(user['_id']), "username": user['username']}
         )
         # Gọi tiếp services để xử lí thêm refresh_token
         refresh_token = await token_service.create_refresh_token(user=user)
@@ -308,6 +305,40 @@ class AuthService:
         )
 
         return Token(access_token=access_token)
+
+
+    async def refresh_user_tokens(self, refresh_token: Optional[str], response: Response) -> Token:
+        if not refresh_token:
+            raise HTTPException(401, "Refresh token not found")
+
+        # Verify refresh token
+        user_id = await self.token_service.verify_refresh_token(refresh_token)
+
+        # Revoke old token (rotation)
+        await self.token_service.revoke_refresh_token(refresh_token)
+
+        # Get user dict
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(401, "Could not find user")
+
+        # Create new tokens
+        new_access_token = create_access_token(
+            data={"sub": str(user['_id']), "username": user['username']}
+        )
+        new_refresh_token = await self.token_service.create_refresh_token(user=user)
+
+        # Set cookie
+        response.set_cookie(
+            key="refresh_token",
+            value=new_refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=30 * 24 * 60 * 60
+        )
+
+        return Token(access_token=new_access_token)
 
     # hàm xử lí logic đăng xuất
     async def logout(
@@ -356,16 +387,12 @@ class AuthService:
 
         return {"message": "Bạn đã logout thành công"}
 
-    async def authenticate_user(self, username: str, password: str) -> Optional[User]:
-        """
-        Authenticates a user (used for OAuth2PasswordBearer).
-        """
+    async def authenticate_user(self, username: str, password: str) -> Optional[Dict[str, Any]]:
         user = await self.user_repo.get_by_username(username)
-
         if not user:
             return None
-
-        if not verify_password(password, user.hashed_password):
+        if not verify_password(password, user["hashed_password"]):
             return None
 
+        user["_id"] = str(user["_id"])
         return user

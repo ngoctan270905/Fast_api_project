@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, get_auth_service
+from app.api.deps import get_auth_service
 from app.core.config import settings
 from app.core.oauth import oauth
 from app.services.auth_service import AuthService

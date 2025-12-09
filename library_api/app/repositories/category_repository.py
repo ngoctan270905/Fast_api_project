@@ -1,45 +1,48 @@
-from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models.category import Category
-from typing import List, Optional
-from sqlmodel import select
-
+from typing import Optional, List, Dict, Any
+from bson import ObjectId
+from app.core.mongo_database import mongodb_client
+from app.schemas.category import CategoryCreate, CategoryUpdate
 
 class CategoryRepository:
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self):
+        self.db = mongodb_client.get_database() #lấy database đã đc kết nối
+        self.collection = self.db.get_collection("categories") # lấy collection
 
-    # Lấy tất cả category
-    async def get_all_categories(self) -> List[Category]:
-        result = await self.db.execute(select(Category))
-        return result.scalars().all()
+    # truy vấn db lấy ds category
+    async def get_all_category(self) -> List[Dict[str, Any]]:
+        categories = []
+        async for category in self.collection.find():
+            categories.append(category)
+        return categories
 
-    # Lấy category theo id
-    async def get_category_by_id(self, category_id: int) -> Optional[Category]:
-        result = await self.db.execute(select(Category).where(Category.id == category_id))
-        return result.scalar_one_or_none()
+    # thao tác vs db tạo category mới
+    async def create_category(self, category_create: CategoryCreate) -> Dict[str, Any]:
+        category_data = category_create.model_dump()
+        result = await self.collection.insert_one(category_data)
+        category_data["_id"] = result.inserted_id
+        return category_data
 
-    async def get_category_by_name(self, name: str) -> Category | None:
-        """Tìm category theo tên"""
-        result = await self.db.execute(
-            select(Category).where(Category.name == name)
+    # truy vấn db lấy category theo name
+    async def get_category_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        category = await self.collection.find_one({"name": name})
+        return category
+
+    # truy vấn db lấy category theo id
+    async def get_by_category_id(self, category_id: str) -> Optional[Dict[str, Any]]:
+        category = await self.collection.find_one({"_id": ObjectId(category_id)})
+        return category
+
+    # thao tác vs db để sửa category
+    async def update_category(self, category_id: str, category_update: CategoryUpdate) -> Optional[Dict[str, Any]]:
+        update_data = category_update.model_dump(exclude_unset=True)
+        await self.collection.update_one(
+            {"_id": ObjectId(category_id)},
+            {"$set": update_data}
         )
-        return result.scalar_one_or_none()
+        updated_category = await self.collection.find_one({"_id": ObjectId(category_id)})
+        return updated_category
 
-    # Tạo category mới
-    async def create_category(self, category: Category) -> Category:
-        self.db.add(category)
-        await self.db.commit()
-        await self.db.refresh(category)
-        return category
-
-    # Update category
-    async def update_category(self, category: Category) -> Category:
-        self.db.add(category)
-        await self.db.commit()
-        await self.db.refresh(category)
-        return category
-
-    # Delete category
-    async def delete_category(self, category: Category):
-        await self.db.delete(category)
-        await self.db.commit()
+    # thao tác vs db để xóa category
+    async def delete(self, category_id: str) -> bool:
+        result = await self.collection.delete_one({"_id": ObjectId(category_id)})
+        return result.deleted_count > 0

@@ -22,7 +22,7 @@ api_router.include_router(
 api_router.include_router(
     users.router,
     prefix="/users",
-    tags=["Users (Admin)"]
+    tags=["Users"]
 )
 
 # ===== Books routes =====
@@ -44,12 +44,4 @@ api_router.include_router(
     authors.router,
     prefix="/authors",
     tags=["Authors"]
-)
-
-# ===== Uploads routes =====
-from app.api.v1.endpoints.uploads import router as uploads_router
-api_router.include_router(
-    uploads_router,
-    prefix="/uploads",
-    tags=["Uploads"]
 )
