@@ -10,7 +10,6 @@ class UserRepository:
     def __init__(self):
         self.db = mongodb_client.get_database()
         self.collection = self.db.get_collection("users")
-        self.oauths = self.db.get_collection("oauth_accounts")
 
     async def get_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         user = await self.collection.find_one({"_id": ObjectId(user_id)})
@@ -44,37 +43,35 @@ class UserRepository:
 
     # Login OAUTH
     async def find_or_create_by_oauth(
-        self,
-        provider: str,
-        account_id: str,
-        email: str,
-        username: str
-    ) -> Dict[str, Any]:
-        # 1. Tìm OAuthAccount
-        oauth = await self.oauths.find_one({
-            "provider": provider,
-            "account_id": account_id
-        })
-        if oauth:
-            user = await self.collection.find_one({"_id": oauth["user_id"]})
-            if user:
-                user["_id"] = str(user["_id"])
-                return user
+            self,
+            provider: str,
+            account_id: str,
+            email: str,
+            username: str
+    ):
+        provider_field = f"{provider}_id"
 
-        # 2. Tìm user theo email
-        user = await self.collection.find_one({"email": email})
+        # 1. Tìm user theo provider_id
+        user = await self.collection.find_one({provider_field: account_id})
+        print(f"Usser: {user}")
         if user:
-            oauth_doc = {
-                "provider": provider,
-                "account_id": account_id,
-                "access_token": "dummy",  # cập nhật sau nếu cần
-                "user_id": user["_id"]
-            }
-            await self.oauths.insert_one(oauth_doc)
-            user["_id"] = str(user["_sub"] if "_sub" in user else str(user["_id"]))
+            user["_id"] = str(user["_id"])
             return user
 
-        # 3. Tạo user mới
+        # 2. Tìm user theo email (nếu đã đăng ký trước đó)
+        user = await self.collection.find_one({"email": email})
+        if user:
+            # cập nhật provider_id
+            await self.collection.update_one(
+                {"_id": user["_id"]},
+                {"$set": {provider_field: account_id, "is_social_login": True}}
+            )
+            user[provider_field] = account_id
+            user["is_social_login"] = True
+            user["_id"] = str(user["_id"])
+            return user
+
+        # 3. Nếu chưa có → tạo user mới
         base_username = username.replace(" ", "_").lower()
         new_username = base_username
         i = 1
@@ -88,18 +85,13 @@ class UserRepository:
             "hashed_password": None,
             "is_active": True,
             "email_verified": True,
-            "role": "user"
+            "role": "user",
+            "is_social_login": True,
+            provider_field: account_id,
         }
+
+        print(f"new_user: {new_user}")
+
         result = await self.collection.insert_one(new_user)
-        new_user["_id"] = result.inserted_id
-
-        oauth_doc = {
-            "provider": provider,
-            "account_id": account_id,
-            "access_token": "dummy",
-            "user_id": new_user["_id"]
-        }
-        await self.oauths.insert_one(oauth_doc)
-
-        new_user["_id"] = str(new_user["_id"])
+        new_user["_id"] = str(result.inserted_id)
         return new_user

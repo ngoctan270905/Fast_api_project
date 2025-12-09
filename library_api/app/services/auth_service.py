@@ -33,12 +33,8 @@ class AuthService:
         return user_dict
 
     async def handle_google_oauth(self, request: Request) -> str:
-        """
-        Handles the Google OAuth callback, creates/updates the user, and returns a JWT.
-        """
         try:
             token = await oauth.google.authorize_access_token(request)
-            # Use the userinfo endpoint to get user profile, it's more reliable
             user_info = await oauth.google.userinfo(token=token)
 
             email = user_info.get('email')
@@ -57,47 +53,45 @@ class AuthService:
                 email=email,
                 username=name or email.split('@')[0]
             )
-            
+
             access_token = create_access_token(
-                data={"sub": str(user.id), "username": user.username}
+                data={
+                    "sub": str(user["_id"]),
+                    "username": user["username"]
+                }
             )
-            
+
             return access_token
+
         except Exception as e:
-            # Consider logging the error
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Authentication failed: {e}"
+                detail=f"Authentication failed: {str(e)}"
             )
 
     async def handle_github_oauth(self, request: Request) -> str:
-        """
-        Handles the GitHub OAuth callback, creates/updates the user, and returns a JWT.
-        """
         try:
             token = await oauth.github.authorize_access_token(request)
             resp = await oauth.github.get('user', token=token)
             resp.raise_for_status()
             user_info = resp.json()
 
-            # GitHub may not provide a public email, so we need to check
             email = user_info.get('email')
             if not email:
-                # If primary email is null, fetch all user emails
                 email_resp = await oauth.github.get('user/emails', token=token)
                 email_resp.raise_for_status()
                 emails = email_resp.json()
-                primary_email_obj = next((e for e in emails if e['primary']), None)
-                if primary_email_obj:
-                    email = primary_email_obj['email']
-            
+                primary_email = next((e for e in emails if e['primary']), None)
+                if primary_email:
+                    email = primary_email['email']
+
             github_account_id = str(user_info.get('id'))
             name = user_info.get('name') or user_info.get('login')
 
             if not email or not github_account_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Could not retrieve essential user information from GitHub."
+                    detail="Could not retrieve essential user info from GitHub."
                 )
 
             user = await self.user_repo.find_or_create_by_oauth(
@@ -106,23 +100,23 @@ class AuthService:
                 email=email,
                 username=name
             )
-            
+
             access_token = create_access_token(
-                data={"sub": str(user.id), "username": user.username}
+                data={
+                    "sub": str(user["_id"]),
+                    "username": user["username"]
+                }
             )
-            
+
             return access_token
+
         except Exception as e:
-            # Consider logging the error
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"GitHub authentication failed: {e}"
+                detail=f"GitHub authentication failed: {str(e)}"
             )
 
     async def handle_facebook_oauth(self, request: Request) -> str:
-        """
-        Handles the Facebook OAuth callback, creates/updates the user, and returns a JWT.
-        """
         try:
             token = await oauth.facebook.authorize_access_token(request)
             resp = await oauth.facebook.get(
@@ -130,8 +124,8 @@ class AuthService:
                 token=token
             )
             resp.raise_for_status()
-            user_info = resp.json()
 
+            user_info = resp.json()
             facebook_account_id = user_info.get('id')
             email = user_info.get('email')
             name = user_info.get('name')
@@ -139,7 +133,7 @@ class AuthService:
             if not email or not facebook_account_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Could not retrieve essential user information from Facebook."
+                    detail="Could not retrieve essential user info from Facebook."
                 )
 
             user = await self.user_repo.find_or_create_by_oauth(
@@ -148,18 +142,21 @@ class AuthService:
                 email=email,
                 username=name or email.split('@')[0]
             )
-            
+
             access_token = create_access_token(
-                data={"sub": str(user.id), "username": user.username}
+                data={
+                    "sub": str(user["_id"]),
+                    "username": user["username"]
+                }
             )
-            
+
             return access_token
+
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Facebook authentication failed: {e}"
+                detail=f"Facebook authentication failed: {str(e)}"
             )
-
 
     # Logic đăng kí tài khoản
     async def register(self, user_data: UserRegister, background_tasks: BackgroundTasks) -> UserResponse:
@@ -289,7 +286,7 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Vui lòng xác minh email"
             )
-        # Nếu user tồn tại, mật khẩu đúng, đang active
+        # Nếu user tồn tại, mật khẩu đúng
         # Thì gọi hàm create_access_token ở security.py để tạo access token
         access_token = create_access_token(
             data={"sub": str(user['_id']), "username": user['username']}
