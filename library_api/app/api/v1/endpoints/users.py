@@ -1,17 +1,10 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status
 
-from app.api.deps import get_user_service
-from app.core.dependencies import get_current_admin_user, get_current_active_user
-from app.models.users import User
-from app.schemas.user import (
-    UserCreate, 
-    UserUpdate, 
-    UserResponse, 
-    UserListResponse, 
-    UserChangePasswordRequest
-)
+from app.schemas.user import UserChangePasswordRequest, UserResponse
 from app.services.user_service import UserService
+from app.core.dependencies import get_current_user
+from app.api.deps import get_user_service
 
 router = APIRouter()
 
@@ -20,25 +13,13 @@ router = APIRouter()
 async def change_current_user_password(
     password_data: UserChangePasswordRequest,
     user_service: Annotated[UserService, Depends(get_user_service)],
-    current_user: Annotated[User, Depends(get_current_active_user)]
+    current_user: Annotated[dict, Depends(get_current_user)]
 ):
-    """
-    Change the current logged-in user's password.
-    """
+
     updated_user = await user_service.change_user_password(
-        current_user=current_user,
+        user_id=current_user["_id"],
         old_password=password_data.old_password,
         new_password=password_data.new_password
     )
+
     return updated_user
-
-
-
-
-
-
-
-
-
-
-

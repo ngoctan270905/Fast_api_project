@@ -1,10 +1,3 @@
-from sqlmodel import select, func
-from sqlalchemy.orm import selectinload
-
-from app.models.book import Book
-from app.models.author import Author
-from app.models.category import Category
-
 from typing import Optional, List, Dict, Any, Tuple
 from bson import ObjectId
 from app.core.mongo_database import mongodb_client

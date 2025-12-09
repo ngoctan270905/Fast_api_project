@@ -1,14 +1,13 @@
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Dict
 
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, status, Response, Cookie, HTTPException, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import get_auth_service, get_token_service, get_user_repository
-from app.core.dependencies import get_current_active_user, get_current_user, oauth2_scheme
+from app.core.dependencies import get_current_user, oauth2_scheme
 from app.core.redis_client import get_redis_client
 from app.core.security import create_access_token
-from app.models.users import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import (
     UserRegister, 
@@ -66,7 +65,7 @@ async def reset_password(
 
 
 # ==================== LOGIN ====================
-@router.post("/login", response_model=ResponseModel[Token])
+@router.post("/login", response_model=Token)
 async def login(
     response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -78,7 +77,7 @@ async def login(
         token_service=token_service,
         username=form_data.username,
         password=form_data.password))
-    return ResponseModel(data=user_login, message="Đăng nhập thành công")
+    return user_login
 
 
 # ==================== REFRESH TOKEN ====================
@@ -94,20 +93,18 @@ async def refresh_token(
 
 
 # ==================== GET USER INFO ====================
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=ResponseModel[UserResponse])
 async def get_current_user_info(
-        current_user: Annotated[User, Depends(get_current_active_user)]
+    current_user: dict = Depends(get_current_user)
 ):
-    """
-    Get current user's info (requires authentication).
-    """
-    return current_user
+    return ResponseModel(data=current_user, message="Lấy thông tin user thành công")
+
 
 # ==================== LOGOUT ====================
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(
     response: Response,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[dict, Depends(get_current_user)],
     redis_client: Annotated[redis.Redis, Depends(get_redis_client)],
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
     token_service: Annotated[TokenService, Depends(get_token_service)],

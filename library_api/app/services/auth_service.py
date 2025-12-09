@@ -1,12 +1,11 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import redis.asyncio as redis
 import time
 from jose import jwt, JWTError
 from app.services.blacklist_service import BlacklistService
 from fastapi import HTTPException, status, Request, Response, BackgroundTasks
-from app.models.users import User
 from app.schemas.auth import UserRegister, Token, UserResponse
 from app.repositories.user_repository import UserRepository
 from app.core.security import (
@@ -310,6 +309,7 @@ class AuthService:
 
         return Token(access_token=access_token)
 
+
     async def refresh_user_tokens(self, refresh_token: Optional[str], response: Response) -> Token:
         if not refresh_token:
             raise HTTPException(401, "Refresh token not found")
@@ -390,16 +390,12 @@ class AuthService:
 
         return {"message": "Bạn đã logout thành công"}
 
-    async def authenticate_user(self, username: str, password: str) -> Optional[User]:
-        """
-        Authenticates a user (used for OAuth2PasswordBearer).
-        """
+    async def authenticate_user(self, username: str, password: str) -> Optional[Dict[str, Any]]:
         user = await self.user_repo.get_by_username(username)
-
         if not user:
             return None
-
-        if not verify_password(password, user.hashed_password):
+        if not verify_password(password, user["hashed_password"]):
             return None
 
+        user["_id"] = str(user["_id"])
         return user

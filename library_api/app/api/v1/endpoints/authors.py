@@ -1,6 +1,5 @@
 from fastapi import APIRouter, status, Depends, HTTPException
 from typing import List
-from app.core.dependencies import DbSession
 from app.schemas.response import ResponseModel
 from app.services.author_service import AuthorService
 from app.schemas.author import AuthorCreate, AuthorUpdate, AuthorResponse

@@ -1,9 +1,5 @@
-# app/api/deps.py
 from typing import Annotated
 from fastapi import Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import get_session
 from app.repositories.author_repository import AuthorRepository
 from app.repositories.book_repository import BookRepository
 from app.repositories.user_repository import UserRepository

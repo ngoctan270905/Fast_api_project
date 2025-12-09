@@ -1,9 +1,6 @@
 from typing import Optional, List, Dict, Any
-
 from bson import ObjectId
 from sqlalchemy import select
-from app.models.users import User
-from app.models.oauth_account import OAuthAccount
 import uuid
 from app.core.mongo_database import mongodb_client
 from app.schemas.auth import UserRegister
@@ -13,6 +10,7 @@ class UserRepository:
     def __init__(self):
         self.db = mongodb_client.get_database()
         self.collection = self.db.get_collection("users")
+        self.oauths = self.db.get_collection("oauth_accounts")
 
     async def get_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         user = await self.collection.find_one({"_id": ObjectId(user_id)})
@@ -44,79 +42,64 @@ class UserRepository:
         return updated_user
 
 
-    async def delete(self, user: User) -> None:
-        """Xóa user"""
-        await self.session.delete(user)
-        await self.session.commit()
-
+    # Login OAUTH
     async def find_or_create_by_oauth(
         self,
         provider: str,
         account_id: str,
         email: str,
         username: str
-    ) -> User:
-        """
-        Tìm hoặc tạo User và OAuthAccount dựa trên thông tin từ nhà cung cấp OAuth.
-        """
-        # 1. Check if an OAuthAccount already exists for this provider and account_id
-        statement = select(OAuthAccount).where(
-            OAuthAccount.provider == provider,
-            OAuthAccount.account_id == account_id
-        )
-        result = await self.session.execute(statement)
-        oauth_account = result.scalars().first()
+    ) -> Dict[str, Any]:
+        # 1. Tìm OAuthAccount
+        oauth = await self.oauths.find_one({
+            "provider": provider,
+            "account_id": account_id
+        })
+        if oauth:
+            user = await self.collection.find_one({"_id": oauth["user_id"]})
+            if user:
+                user["_id"] = str(user["_id"])
+                return user
 
-        if oauth_account:
-            # If OAuthAccount exists, return the associated User
-            await self.session.refresh(oauth_account, attribute_names=["user"])
-            if oauth_account.user:
-                return oauth_account.user
-
-        # 2. If no OAuthAccount, check if a User exists with this email
-        user = await self.get_by_email(email)
-
+        # 2. Tìm user theo email
+        user = await self.collection.find_one({"email": email})
         if user:
-            # If User exists by email, link the new OAuthAccount to this User
-            new_oauth_account = OAuthAccount(
-                provider=provider,
-                account_id=account_id,
-                access_token="dummy_access_token", # Will be updated with real token later
-                user_id=user.id
-            )
-            self.session.add(new_oauth_account)
-            await self.session.commit()
-            await self.session.refresh(user, attribute_names=["oauth_accounts"])
+            oauth_doc = {
+                "provider": provider,
+                "account_id": account_id,
+                "access_token": "dummy",  # cập nhật sau nếu cần
+                "user_id": user["_id"]
+            }
+            await self.oauths.insert_one(oauth_doc)
+            user["_id"] = str(user["_sub"] if "_sub" in user else str(user["_id"]))
             return user
-        
-        # 3. If neither, create a new User and a new OAuthAccount
-        # Generate a unique username if the provided one already exists
+
+        # 3. Tạo user mới
         base_username = username.replace(" ", "_").lower()
         new_username = base_username
         i = 1
-        while await self.get_by_username(new_username):
+        while await self.collection.find_one({"username": new_username}):
             new_username = f"{base_username}{i}"
             i += 1
 
-        new_user = User(
-            username=new_username,
-            email=email,
-            # hashed_password is None for social logins
-            is_active=True,
-            email_verified=True, # Assume verified by provider
-            role="user" # Default role
-        )
-        self.session.add(new_user)
-        await self.session.flush() # Flush to get new_user.id
-        await self.session.refresh(new_user)
+        new_user = {
+            "username": new_username,
+            "email": email,
+            "hashed_password": None,
+            "is_active": True,
+            "email_verified": True,
+            "role": "user"
+        }
+        result = await self.collection.insert_one(new_user)
+        new_user["_id"] = result.inserted_id
 
-        new_oauth_account = OAuthAccount(
-            provider=provider,
-            account_id=account_id,
-            access_token="dummy_access_token", # Will be updated with real token later
-            user_id=new_user.id
-        )
-        self.session.add(new_oauth_account)
-        await self.session.commit()
-        await self.session.refresh(new_user, attribute_names=["oauth_accounts"])
+        oauth_doc = {
+            "provider": provider,
+            "account_id": account_id,
+            "access_token": "dummy",
+            "user_id": new_user["_id"]
+        }
+        await self.oauths.insert_one(oauth_doc)
+
+        new_user["_id"] = str(new_user["_id"])
         return new_user

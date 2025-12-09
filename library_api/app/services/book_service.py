@@ -1,11 +1,8 @@
 from typing import List, Tuple, Optional, Dict, Any
-from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi import HTTPException, status
 from unicodedata import category
-
 from app.repositories.author_repository import AuthorRepository
 from app.repositories.book_repository import BookRepository
-from app.models.book import Book
 from app.repositories.category_repository import CategoryRepository
 from app.repositories.author_repository import AuthorRepository
 from app.schemas.book import BookCreate, BookUpdate, BookResponse, AuthorInBook, CategoryInBook

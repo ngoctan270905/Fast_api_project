@@ -1,6 +1,5 @@
 from fastapi import HTTPException, status
 from app.repositories.category_repository import CategoryRepository
-from app.models.category import Category
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse
 from typing import List, Optional
 

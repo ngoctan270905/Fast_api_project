@@ -2,10 +2,3 @@
 # By importing all models here, we make them easily accessible to other parts of the app,
 # especially for Alembic's autogenerate feature.
 
-from .users import User
-from .book import Book
-from .author import Author
-from .category import Category
-from .book_author import BookAuthor
-from .oauth_account import OAuthAccount
-from .refresh_token import RefreshToken

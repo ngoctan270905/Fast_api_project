@@ -4,8 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, update
 
 from app.core.mongo_database import mongodb_client
-from app.models import RefreshToken
-from app.models.refresh_token import RefreshToken
 import hashlib
 
 class TokenRepository:
@@ -36,14 +34,14 @@ class TokenRepository:
 
 
     # Thao tác với DB tìm mã refresh_token
-    async def get_refresh_token(self, token: str) -> Optional[RefreshToken]:
+    async def get_refresh_token(self, token: str) -> Optional[Dict[str, Any]]:
         hashed_token = self._hash_token(token) # băm token trước
         refresh_token = await self.collection.find_one({"token": hashed_token})
         return refresh_token
 
 
     # thu hồi refresh token
-    async def revoke_refresh_token(self, token: str) -> RefreshToken | None:
+    async def revoke_refresh_token(self, token: str) -> Optional[Dict[str, Any]]:
         token_obj = await self.get_refresh_token(token)
         if token_obj:
             await self.collection.update_one(

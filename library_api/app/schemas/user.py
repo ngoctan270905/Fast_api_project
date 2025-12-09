@@ -35,7 +35,7 @@ class UserUpdate(BaseModel):
 # ==================== Schema for Response ====================
 class UserResponse(UserBase):
     """Schema để trả về trong API response, không bao gồm mật khẩu"""
-    id: int
+    id: str
     created_at: datetime
 
 

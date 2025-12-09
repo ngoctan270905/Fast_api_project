@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import HTTPException, status
 from app.repositories.token_repository import TokenRepository
-from app.models.users import User
 
 class TokenService:
 

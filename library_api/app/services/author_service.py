@@ -1,8 +1,6 @@
-from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 from typing import List, Optional
 from app.repositories.author_repository import AuthorRepository
-from app.models.author import Author
 from app.schemas.author import AuthorCreate, AuthorUpdate, AuthorResponse
 
 

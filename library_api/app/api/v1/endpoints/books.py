@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
-from app.core.dependencies import DbSession
 from app.core.database import get_session
 from app.services.book_service import BookService
 from app.schemas.book import BookResponse, BookCreate, BookUpdate
