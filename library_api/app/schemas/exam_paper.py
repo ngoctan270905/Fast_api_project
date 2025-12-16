@@ -16,7 +16,7 @@ class ExamPaperResponse(ExamPaperBase):
     updated_at: datetime
 
 class ExamPaperDetail(BaseModel):
-    id: Optional[ObjectIdStr] = Field(default=None, alias="_id")
+    id: Optional[ObjectIdStr] = Field(default=None, alias="_id", serialization_alias="id")
     exam_id: ObjectIdStr = Field(..., exclude=True)
     paper_number: int
     title: str

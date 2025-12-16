@@ -14,21 +14,21 @@ api_router.include_router(
 # ====== Exam Papers routes =====
 api_router.include_router(
     exam_papers.router,
-    prefix="/exam-papers",
+    # prefix="/exam-papers",
     tags=["Exam Papers"]
 )
 
 # ===== Sections routes =====
 api_router.include_router(
     section.router,
-    prefix="/sections",
+    # prefix="/sections",
     tags=["Sections"]
 )
 
 # ===== Question routes =====
 api_router.include_router(
     questions.router,
-    prefix="/questions",
+    # prefix="/questions",
     tags=["Questions"]
 )
 

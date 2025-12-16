@@ -25,6 +25,12 @@ class ExamPaperRepository:
             inserted_docs.append(doc)
         return inserted_docs
 
+    # Truy vấn db để lấy thông tin chi tiết 1 đề thi
+    async def get_by_id(self, exam_paper_id: str) -> Dict[str, Any]:
+        exam = await self.collection.find_one({"_id": ObjectId(exam_paper_id)})
+        return exam
+
+
     # Truy vấn db xem chi tiết
     async def get_by_exam_id(self, exam_id: str) -> List[Dict[str, Any]]:
         cursor = self.collection.find({"exam_id": ObjectId(exam_id)}).sort("paper_number", 1)

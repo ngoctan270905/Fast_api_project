@@ -14,12 +14,22 @@ class ExamRepository:
 
     # Truy vấn db lấy ds bài kiểm tra
     async def get_all_exam(self, grade: Optional[int] = None) -> List[Dict[str, Any]]:
-        query = {"deleted_at": None}
+        query = {}
         if grade is not None:
             query["grade"] = grade
         exams = []
         cursor = self.collection.find(query)
         async for exam in cursor:
+            exam["summary"] = {
+                "items": [
+                    {"label": "Khối", "value": str(exam.get("grade", ""))},
+                    {"label": "Loại bài", "value": exam.get("exam_type", "").title()},
+                    {"label": "Số đề", "value": str(exam.get("exam_number", ""))},
+                    {"label": "Mô tả", "value": exam.get("description", "")},
+                    {"label": "Thời gian tạo",
+                     "value": exam.get("created_at").strftime("%d/%m/%Y %H:%M") if exam.get("created_at") else ""}
+                ]
+            }
             exams.append(exam)
         return exams
 
@@ -30,7 +40,6 @@ class ExamRepository:
             "created_by": ObjectId(user_id),
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
-            "deleted_at": None
         })
         insert_result = await self.collection.insert_one(exam_data)
         exam_data["_id"] = insert_result.inserted_id
@@ -51,7 +60,13 @@ class ExamRepository:
 
     # Truy vấn db xem thông tin chi tiết exam
     async def get_exam_by_id(self, exam_id: str) -> Dict[str, Any]:
-        exam = await self.collection.find_one({"_id": ObjectId(exam_id), "deleted_at":None})
+        exam = await self.collection.find_one({"_id": ObjectId(exam_id)})
         print(f"tìm đc {exam}")
         return exam
+
+
+    # Truy vấn db xóa bài kiểm tra kèm theo đề
+    async def delete(self, exam_id: str) -> bool:
+        deleted_exam = await self.collection.delete_one({"_id": ObjectId(exam_id)})
+        return deleted_exam.deleted_count == 1
 
