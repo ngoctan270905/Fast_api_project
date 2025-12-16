@@ -10,12 +10,7 @@ from app.api.deps import get_exam_service, get_exam_paper_repository, get_sectio
     get_section_service
 from app.services.section_service import SectionService
 
-
 router = APIRouter()
 
-# POST thêm section
-@router.post("/{exam_paper_id}/sections", response_model=ResponseModel[SectionResponse], summary="Thêm mới phần")
-async def create_section(section_data:SectionCreate, exam_paper_id: str, section_service: SectionService = Depends(get_section_service),
-                         user: dict = Depends(get_current_user)):
-    new_section = await section_service.create_section(section_data, exam_paper_id)
-    return ResponseModel(data=new_section, message="Thêm phần trong đề thành công")
+
+

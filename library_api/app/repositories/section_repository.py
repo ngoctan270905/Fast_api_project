@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Any
 from bson import ObjectId
 
 from app.core.mongo_database import mongodb_client
-from app.schemas.exam import ExamResponse, ExamCreate
+from app.schemas.exam import ExamListResponse, ExamCreate
 from app.schemas.section import SectionResponse, SectionDetail, SectionCreate, SectionUpdate
 
 
@@ -40,7 +40,7 @@ class SectionRepository:
         sections = []
         async for section in cursor:
             sections.append(section)
-        # print(f"Found {len(sections)} sections")
+        print(f"Found {len(sections)} sections")
         return sections
 
     # Truy vấn db tính số section hiện có của đề thi

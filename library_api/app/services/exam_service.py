@@ -2,11 +2,16 @@ from datetime import datetime
 from bson import ObjectId
 from fastapi import HTTPException, status
 from typing import List, Optional, Dict, Any
+
+from app.exceptions.exam_exception import ExamNotFoundError, NoFieldsToUpdateError
 from app.repositories.exam_paper_repository import ExamPaperRepository
 from app.repositories.exam_repository import ExamRepository
 from app.repositories.question_repository import QuestionRepository
 from app.repositories.section_repository import SectionRepository
-from app.schemas.exam import ExamCreate, ExamUpdate, ExamResponse, ExamDetailResponse
+from app.schemas.exam import ExamCreate, ExamUpdate, ExamListResponse, ExamDetailResponse, ExamCreateResponse, \
+    ExamUpdateResponse
+from app.utils.enums import ExamSortType
+
 
 class ExamService:
     def __init__(self, exam_repo: ExamRepository, exam_paper_repo: ExamPaperRepository,
@@ -18,17 +23,30 @@ class ExamService:
 
 
     # Logic lấy danh sách bài kiểm tra
-    async def get_all_exams(self) -> List[ExamResponse]:
-        exams_data = await self.exam_repo.get_all_exam()
+    async def get_all_exams(self, grade: Optional[int] = None, sort_by: Optional[ExamSortType] = None) -> List[ExamListResponse]:
+        exams_data = await self.exam_repo.get_all_exam(grade)
+
+        if sort_by is not None:
+            if sort_by == ExamSortType.name:
+                exams_data.sort(key=lambda x: x["name"])
+
+            elif sort_by == ExamSortType.grade:
+                exams_data.sort(key=lambda x: x["grade"], reverse=True)
+
+            elif sort_by == ExamSortType.created_at:
+                exams_data.sort(key=lambda x: x["created_at"], reverse=True)
+
         exams = []
+
         for exam in exams_data:
-            exam_response = ExamResponse(**exam)
+            exam_response = ExamListResponse(**exam)
             exams.append(exam_response)
+
         return exams
 
 
     # Logic thêm bài kiểm tra kèm số đề thi
-    async def create_exam(self, exam_create: ExamCreate, user_id:str) -> ExamResponse:
+    async def create_exam(self, exam_create: ExamCreate, user_id:str) -> ExamCreateResponse:
         exam_dict = exam_create.model_dump()
         exam_record = await self.exam_repo.create(exam_dict, user_id)
         exam_id = str(exam_record["_id"])  # Lấy ID sau insert
@@ -44,10 +62,26 @@ class ExamService:
                 "title": f"Đề số {paper_num}"
             }
             papers_data.append(paper_data)
+            print(f"Test paper {papers_data}")
 
         if papers_data:
             await self.exam_paper_repo.create_many(papers_data)
-        return ExamResponse(**exam_record)
+        return ExamCreateResponse(**exam_record)
+
+
+    # Logic update bài kiểm tra
+    async def update_exam(self, exam_id: str, exam_data: ExamUpdate) -> ExamUpdateResponse:
+        exam = await self.exam_repo.get_exam_by_id(exam_id)
+        if not exam:
+            raise ExamNotFoundError()
+
+        exam_dict = exam_data.model_dump(exclude_unset=True)
+        if not exam_dict:
+            raise NoFieldsToUpdateError()
+
+        updated_exam = await self.exam_repo.update(exam_dict, exam_id)
+
+        return ExamUpdateResponse(**updated_exam)
 
 
     # Logic xem chi tiết bài kiểm tra
@@ -88,7 +122,7 @@ class ExamService:
         section_ids = []
         for section in sections:
             section_ids.append(section["_id"])
-        # print(f"test {section_ids}")
+        print(f"test {section_ids}")
 
         # -----------------------------------------------------
         # 4. Lấy danh sách câu hỏi theo section_ids

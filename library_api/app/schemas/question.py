@@ -1,28 +1,88 @@
-from pydantic import BaseModel, Field
+from enum import Enum
 from typing import List, Optional
+from datetime import datetime
+from pydantic import BaseModel, Field
 from .utils import ObjectIdStr
 
-class AnswerItem(BaseModel):
-    label: str
-    value: str
+# Validate type câu hỏi
+class QuestionType(str, Enum):
+    MULTIPLE_CHOICE = "MULTIPLE_CHOICE"
+    SHORT_ANSWER = "SHORT_ANSWER"
+    ESSAY = "ESSAY"
 
-class QuestionBase(BaseModel):
-    section_id: ObjectIdStr
-    order: int
-    score_value: float
+# Trắc nghiệm
+class OptionItem(BaseModel):
+    key: str = Field(..., example="A")
+    value: str = Field(..., example="x = 2")
+
+
+# Dữ liệu thêm mới
+class QuestionCreate(BaseModel):
+    question_type: QuestionType
     question_text: str
-    answers: Optional[List[AnswerItem]] = None
+    images: Optional[List[str]] = None
+    order: int
+    score: float
+    # MULTIPLE_CHOICE
+    options: Optional[List[OptionItem]] = None
+    # # SHORT_ANSWER
+    # correct_answers: Optional[List[str]] = None
 
 
-class QuestionResponse(QuestionBase):
-    id: ObjectIdStr
+# Dữ liệu update
+class QuestionUpdate(BaseModel):
+    question_text: Optional[str] = None
+    order: Optional[int] = None
+    score: Optional[float] = None
+
+    options: Optional[List[OptionItem]] = None
 
 
+# Dữ liệu Trả về
+class QuestionResponse(BaseModel):
+    id: ObjectIdStr = Field(alias="_id")
+    section_id: ObjectIdStr
+    question_type: QuestionType
+    question_text: str
+    images: Optional[List[str]] = None
+    order: int
+    score: float
+    options: Optional[List[OptionItem]] = None
+
+
+# Chi tiết trong Exam
 class QuestionDetail(BaseModel):
     id: ObjectIdStr = Field(..., alias="_id")
-    section_id: ObjectIdStr = Field(..., exclude=True)
-    score_value: float
+
+    question_type: QuestionType
     question_text: str
     order: int
-    answers: Optional[List[AnswerItem]] = None
+    score: float
+    options: Optional[List[OptionItem]] = None
+
+
+
+# class AnswerItem(BaseModel):
+#     label: str
+#     value: str
+#
+# class QuestionBase(BaseModel):
+#     section_id: ObjectIdStr
+#     order: int
+#     score_value: float
+#     question_text: str
+#     answers: Optional[List[AnswerItem]] = None
+#
+#
+# class QuestionResponse(QuestionBase):
+#     id: ObjectIdStr
+
+
+# class QuestionDetail(BaseModel):
+#     id: ObjectIdStr = Field(..., alias="_id")
+#     section_id: ObjectIdStr = Field(..., exclude=True)
+#     score_value: float
+#     question_text: str
+#     order: int
+#     answers: Optional[List[AnswerItem]] = None
 

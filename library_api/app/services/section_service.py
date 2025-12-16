@@ -6,7 +6,7 @@ from app.repositories.exam_paper_repository import ExamPaperRepository
 from app.repositories.exam_repository import ExamRepository
 from app.repositories.question_repository import QuestionRepository
 from app.repositories.section_repository import SectionRepository
-from app.schemas.exam import ExamCreate, ExamUpdate, ExamResponse, ExamDetailResponse
+from app.schemas.exam import ExamCreate, ExamUpdate, ExamListResponse, ExamDetailResponse
 from app.schemas.section import SectionCreate, SectionResponse, SectionUpdate
 
 
@@ -18,7 +18,7 @@ class SectionService:
     async def create_section(self, section_create: SectionCreate, exam_paper_id: str) -> Optional[SectionResponse]:
         section_count = await self.section_repo.count_by_exam_paper(exam_paper_id)
         new_section_data = {
-            "exam_paper_id": exam_paper_id,
+            "exam_paper_id": ObjectId(exam_paper_id),
             "title": section_create.title,
             "order": section_count + 1
         }

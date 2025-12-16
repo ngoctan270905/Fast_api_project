@@ -28,7 +28,7 @@ class ExamPaperRepository:
     # Truy vấn db xem chi tiết
     async def get_by_exam_id(self, exam_id: str) -> List[Dict[str, Any]]:
         cursor = self.collection.find({"exam_id": ObjectId(exam_id)}).sort("paper_number", 1)
-        # print(cursor)
+        # print(f"Testkkk{cursor}")
         papers = []
         async for paper in cursor:
             papers.append(paper)

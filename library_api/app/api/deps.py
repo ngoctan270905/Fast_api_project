@@ -13,6 +13,7 @@ from app.services.auth_service import AuthService
 from app.services.author_service import AuthorService
 from app.services.book_service import BookService
 from app.services.exam_service import ExamService
+from app.services.question_service import QuestionService
 from app.services.section_service import SectionService
 from app.services.user_service import UserService
 from app.services.token_service import TokenService
@@ -114,3 +115,7 @@ def get_section_service() -> SectionService:
     section_repo = get_section_repository()
     exam_paper_repo = get_exam_paper_repository()
     return SectionService(section_repo=section_repo, exam_paper_repo=exam_paper_repo)
+
+def get_question_service() -> QuestionService:
+    question_repo = get_question_repository()
+    return QuestionService(question_repo=question_repo)
