@@ -22,7 +22,7 @@ class ExamService:
         self.question_repo = question_repo
 
 
-    # Logic lấy danh sách bài kiểm tra
+    # Logic lấy danh sách bài kiểm tra =================================================================================
     async def get_all_exams(self, grade: Optional[int] = None, sort_by: Optional[ExamSortType] = None) -> List[ExamListResponse]:
         exams_data = await self.exam_repo.get_all_exam(grade)
 
@@ -45,10 +45,10 @@ class ExamService:
         return exams
 
 
-    # Logic thêm bài kiểm tra kèm số đề thi
-    async def create_exam(self, exam_create: ExamCreate, user_id:str) -> ExamCreateResponse:
+    # Logic thêm bài kiểm tra kèm số đề thi ============================================================================
+    async def create_exam(self, exam_create: ExamCreate) -> ExamCreateResponse:
         exam_dict = exam_create.model_dump()
-        exam_record = await self.exam_repo.create(exam_dict, user_id)
+        exam_record = await self.exam_repo.create(exam_dict)
         exam_id = str(exam_record["_id"])  # Lấy ID sau insert
 
         exam_number = exam_create.exam_number
@@ -69,7 +69,7 @@ class ExamService:
         return ExamCreateResponse(**exam_record)
 
 
-    # Logic update bài kiểm tra
+    # Logic update bài kiểm tra ========================================================================================
     async def update_exam(self, exam_id: str, exam_data: ExamUpdate) -> ExamUpdateResponse:
         exam = await self.exam_repo.get_exam_by_id(exam_id)
         if not exam:
@@ -84,7 +84,7 @@ class ExamService:
         return ExamUpdateResponse(**updated_exam)
 
 
-    # Logic xem chi tiết bài kiểm tra
+    # Logic xem chi tiết bài kiểm tra ==================================================================================
     async def get_exam_by_id(self, exam_id: str) -> Optional[Dict[str, Any]]:
 
         # -----------------------------------------------------
@@ -92,12 +92,13 @@ class ExamService:
         # -----------------------------------------------------
         exam = await self.exam_repo.get_exam_by_id(exam_id)
         if not exam:
-            return None
+            raise ExamNotFoundError()
 
         # -----------------------------------------------------
         # 2. Lấy danh sách đề thi
         # -----------------------------------------------------
         exam_papers = await self.exam_paper_repo.get_by_exam_id(exam_id)
+        print(f"Danh sách đề thi {exam_papers}")
         if not exam_papers:
             exam["exam_papers"] = []
             return exam
@@ -107,7 +108,7 @@ class ExamService:
         exam_paper_ids = []
         for paper in exam_papers:
             exam_paper_ids.append(paper["_id"])
-        # print(f"danh sách id để lấy section {exam_paper_ids}")
+        print(f"danh sách id để lấy section {exam_paper_ids}")
 
         # -----------------------------------------------------
         # 3. Lấy danh sách các section theo danh sách paper_ids
@@ -139,6 +140,7 @@ class ExamService:
                 questions_by_section[section_id] = []
 
             questions_by_section[section_id].append(question) # thêm câu hỏi vào ds câu hỏi của section
+            print(f"Câu hỏi trong section {questions_by_section}")
 
         # -----------------------------------------------------
         # 5. Gom section vào từng exam_paper
@@ -168,4 +170,43 @@ class ExamService:
             exam_paper["sections"] = sections_grouped_by_paper.get(exam_paper_id, [])
 
         return exam
+
+
+    # Logic DELETE exam ================================================================================================
+    async def delete_exam(self, exam_id: str) -> bool:
+        exam = await self.exam_repo.get_exam_by_id(exam_id)
+        if not exam:
+            raise ExamNotFoundError()
+
+        exam_papers = await self.exam_paper_repo.get_by_exam_id(exam_id)
+        # Gom id của đề thi để tìm câu hỏi
+        exam_paper_ids = []
+        for paper in exam_papers:
+            exam_paper_ids.append(paper["_id"])
+
+        # Nếu có đề thi thì tìm sections
+        if exam_paper_ids:
+            sections = await self.section_repo.get_by_paper_ids(exam_paper_ids)
+            # Gom id của phần để xóa questions
+            section_ids = []
+            for section in sections:
+                section_ids.append(section["_id"])
+
+            # Nếu có sections thực hiện xóa all question
+            if section_ids:
+                await self.question_repo.delete_many_by_section_ids(section_ids)
+
+            # xóa all sections
+            await self.section_repo.delete_many_by_paper_ids(exam_paper_ids)
+
+        # Xóa all đề thi
+        await self.exam_paper_repo.delete_many_by_exam_id(exam_id)
+
+        # xóa bài kiểm tra chính
+        deleted = await self.exam_repo.delete_one_by_id(exam_id)
+
+        return deleted
+
+
+
 

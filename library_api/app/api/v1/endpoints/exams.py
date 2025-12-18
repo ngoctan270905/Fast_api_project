@@ -36,10 +36,9 @@ async def list_exams(exam_service: ExamService = Depends(get_exam_service),
                       summary="Tạo bài kiểm tra mới")
 
 async def create_exam(exam_data: ExamCreate,
-                      exam_service: ExamService = Depends(get_exam_service),
-                      user: dict = Depends(get_current_user) ):
+                      exam_service: ExamService = Depends(get_exam_service)):
 
-    new_exam = await exam_service.create_exam(exam_data, user["id"])
+    new_exam = await exam_service.create_exam(exam_data)
     return ResponseModel(data=new_exam, message="Tạo bài kiểm tra mới thành công")
 
 
@@ -60,6 +59,15 @@ async def get_exam_detail(exam_id:str,  exam_service:ExamService = Depends(get_e
 async def update_exam(exam_id:str,exam_data: ExamUpdate, exam_service: ExamService = Depends(get_exam_service)):
     updated_exam = await exam_service.update_exam(exam_data=exam_data, exam_id=exam_id)
     return ResponseModel(data=updated_exam, message="Cập nhật bài kiểm tra thành công")
+
+
+
+# DELETE exam =========================================================================================================
+@router.delete("/{exam_id}",status_code=status.HTTP_204_NO_CONTENT, summary="Xóa bài kiểm tra" )
+
+async def delete_exam(exam_id:str, exam_service: ExamService = Depends(get_exam_service)):
+    deleted = await exam_service.delete_exam(exam_id=exam_id)
+    return deleted
 
 
 

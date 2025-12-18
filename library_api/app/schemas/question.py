@@ -16,25 +16,55 @@ class OptionItem(BaseModel):
     value: str = Field(..., example="x = 2")
 
 
-# Dữ liệu thêm mới
+# Dữ liệu thêm mới ======================================================
 class QuestionCreate(BaseModel):
+    question_type: QuestionType
+    question_text: str
+    images: Optional[str] = None
+    order: int
+    score: float
+    options: Optional[List[OptionItem]] = None
+
+# Dữ liệu Create trả về
+class QuestionCreateResponse(BaseModel):
+    id: ObjectIdStr = Field(alias="_id", serialization_alias="id")
+    section_id: ObjectIdStr
+    question_type: QuestionType
+    question_text: str
+    images: Optional[str] = None
+    order: int
+    score: float
+    options: Optional[List[OptionItem]] = None
+
+
+# Dữ liệu update =========================================================
+class QuestionUpdate(BaseModel):
+    question_text: Optional[str] = None
+    order: Optional[int] = None
+    score: Optional[float] = None
+    options: Optional[List[OptionItem]] = None
+
+# Dữ liệu Update trả về
+class QuestionUpdateResponse(BaseModel):
+    id: ObjectIdStr = Field(alias="_id", serialization_alias="id")
+    section_id: ObjectIdStr
     question_type: QuestionType
     question_text: str
     images: Optional[List[str]] = None
     order: int
     score: float
-    # MULTIPLE_CHOICE
     options: Optional[List[OptionItem]] = None
-    # # SHORT_ANSWER
-    # correct_answers: Optional[List[str]] = None
 
 
-# Dữ liệu update
-class QuestionUpdate(BaseModel):
-    question_text: Optional[str] = None
-    order: Optional[int] = None
-    score: Optional[float] = None
-
+# Dữ liệu Read Question ===================================================
+class QuestionReadResponse(BaseModel):
+    id: ObjectIdStr = Field(alias="_id", serialization_alias="id")
+    section_id: ObjectIdStr
+    question_type: QuestionType
+    question_text: str
+    images: Optional[List[str]] = None
+    order: int
+    score: float
     options: Optional[List[OptionItem]] = None
 
 
@@ -44,7 +74,7 @@ class QuestionResponse(BaseModel):
     section_id: ObjectIdStr
     question_type: QuestionType
     question_text: str
-    images: Optional[List[str]] = None
+    images: Optional[str] = None
     order: int
     score: float
     options: Optional[List[OptionItem]] = None

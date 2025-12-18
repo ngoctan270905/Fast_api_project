@@ -18,6 +18,7 @@ class SectionRepository:
 
     # Truy vấn db để sửa section =======================================================================================
     async def update(self, section_id: str, section_update: dict) -> Dict[str, Any]:
+        section_update["updated_at"] = datetime.utcnow()
         update_section = await self.collection.update_one(
             {"_id": ObjectId(section_id)},
             {"$set": section_update}
@@ -32,8 +33,9 @@ class SectionRepository:
         return section
 
 
-    # Truy vấn db lấy dữ liệu ==========================================================================================
+    # Truy vấn db lấy ds sections trong exam_paper =====================================================================
     async def get_by_paper_ids(self, paper_ids: List[ObjectId]) -> List[Dict[str, Any]]:
+        print(f"paper ids {paper_ids}")
         cursor = self.collection.find({"exam_paper_id": {"$in": paper_ids}})
         sections = []
         async for section in cursor:
@@ -50,6 +52,12 @@ class SectionRepository:
     # Truy vấn db để xóa section =======================================================================================
     async def delete(self, section_id: str) -> bool:
         delete_section = await self.collection.delete_one({"_id": ObjectId(section_id)})
-        return delete_section.deleted_count == 1
+        return delete_section.deleted_count > 0
+
+
+    # Truy vấn db để xóa nhiều section dựa trên exam_paper_id ==========================================================
+    async def delete_many_by_paper_ids(self, paper_ids: List[ObjectId]) -> int:
+        result = await self.collection.delete_many({"exam_paper_id": {"$in": paper_ids}})
+        return result.deleted_count
 
 

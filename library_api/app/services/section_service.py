@@ -25,7 +25,9 @@ class SectionService:
         new_section_data = {
             "exam_paper_id": ObjectId(exam_paper_id),
             "title": section_create.title,
-            "order": section_count + 1
+            "order": section_count + 1,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
         }
 
         new_section = await self.section_repo.create(new_section_data)

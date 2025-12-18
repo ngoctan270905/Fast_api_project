@@ -118,4 +118,5 @@ def get_section_service() -> SectionService:
 
 def get_question_service() -> QuestionService:
     question_repo = get_question_repository()
-    return QuestionService(question_repo=question_repo)
+    section_repo = get_section_repository()
+    return QuestionService(question_repo=question_repo, section_repo=section_repo)
