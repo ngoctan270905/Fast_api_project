@@ -2,15 +2,43 @@ from typing import Annotated
 from fastapi import Depends
 from app.repositories.author_repository import AuthorRepository
 from app.repositories.book_repository import BookRepository
+from app.repositories.exam_paper_repository import ExamPaperRepository
+from app.repositories.exam_repository import ExamRepository
+from app.repositories.question_repository import QuestionRepository
+from app.repositories.section_repository import SectionRepository
 from app.repositories.user_repository import UserRepository
 from app.repositories.token_repository import TokenRepository
 from app.repositories.category_repository import CategoryRepository
 from app.services.auth_service import AuthService
 from app.services.author_service import AuthorService
 from app.services.book_service import BookService
+from app.services.exam_service import ExamService
+from app.services.question_service import QuestionService
+from app.services.section_service import SectionService
 from app.services.user_service import UserService
 from app.services.token_service import TokenService
 from app.services.category_service import CategoryService
+
+
+# Dependency để lấy QuestionRepository
+def get_question_repository() -> QuestionRepository:
+    return QuestionRepository()
+
+
+# Dependency để lấy SectionRepository
+def get_section_repository() -> SectionRepository:
+    return SectionRepository()
+
+
+# Dependency để lấy ExamPaperRepository
+def get_exam_paper_repository() -> ExamPaperRepository:
+    return ExamPaperRepository()
+
+
+# Dependency để lấy ExamRepository
+def get_exam_repository() -> ExamRepository:
+    return ExamRepository()
+
 
 # Dependency để lấy CategoryRepository
 def get_category_repository() -> CategoryRepository:
@@ -75,3 +103,20 @@ def get_book_service() -> BookService:
     category_repo = get_category_repository()
     author_repo = get_author_repository()
     return BookService(book_repo=book_repo, category_repo=category_repo, author_repo=author_repo)
+
+def get_exam_service() -> ExamService:
+    exam_repo = get_exam_repository()
+    exam_paper_repo = get_exam_paper_repository()
+    section_repo = get_section_repository()
+    question_repo = get_question_repository()
+    return ExamService(exam_repo=exam_repo, exam_paper_repo=exam_paper_repo, section_repo=section_repo, question_repo=question_repo)
+
+def get_section_service() -> SectionService:
+    section_repo = get_section_repository()
+    exam_paper_repo = get_exam_paper_repository()
+    return SectionService(section_repo=section_repo, exam_paper_repo=exam_paper_repo)
+
+def get_question_service() -> QuestionService:
+    question_repo = get_question_repository()
+    section_repo = get_section_repository()
+    return QuestionService(question_repo=question_repo, section_repo=section_repo)

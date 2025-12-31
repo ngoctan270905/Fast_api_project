@@ -1,8 +1,36 @@
-# app/api/v1/api.py
 from fastapi import APIRouter
-from app.api.v1.endpoints import books, categories, authors, auth, users, social_auth
+from app.api.v1.endpoints import books, categories, authors, auth, users, social_auth, exams, section, exam_papers, \
+    questions
 
 api_router = APIRouter()
+
+# ====== Exams routes =====
+api_router.include_router(
+    exams.router,
+    prefix="/exams",
+    tags=["Exams"]
+)
+
+# ====== Exam Papers routes =====
+api_router.include_router(
+    exam_papers.router,
+    # prefix="/exam-papers",
+    tags=["Exam Papers"]
+)
+
+# ===== Sections routes =====
+api_router.include_router(
+    section.router,
+    # prefix="/sections",
+    tags=["Sections"]
+)
+
+# ===== Question routes =====
+api_router.include_router(
+    questions.router,
+    # prefix="/questions",
+    tags=["Questions"]
+)
 
 # ===== Auth routes =====
 api_router.include_router(

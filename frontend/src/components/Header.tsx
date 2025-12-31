@@ -19,6 +19,7 @@ function Header() {
         <Navbar.Collapse id="basic-navbar-nav">
           <Nav className="me-auto">
             <Nav.Link as={Link} to="/">Home</Nav.Link>
+            {auth.user && <Nav.Link as={Link} to="/exams">Exams</Nav.Link>}
             {/* Add more authenticated links here if needed */}
           </Nav>
           <Nav>

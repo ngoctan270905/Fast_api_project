@@ -1,149 +1,96 @@
-# Full-Stack Library Management API
+# API Hệ Thống Quản Lý Thư Viện & Thi Trắc Nghiệm
 
-This is a full-stack application featuring a RESTful API built with Python and FastAPI for the backend, and a modern user interface created with React and Vite for the frontend.
+Đây là hệ thống Backend API mạnh mẽ được xây dựng bằng **FastAPI** (Python). Dự án kết hợp giữa **Hệ thống Quản lý Thư viện** và **Hệ thống Thi trắc nghiệm trực tuyến**, được thiết kế để xử lý các mối quan hệ dữ liệu phức tạp, xác thực người dùng và các tác vụ nền sử dụng **MongoDB**.
 
-## ✨ Features
+## ✨ Tính năng chính
 
-- **User Authentication**: Secure user registration, login, and password management (change, forgot, reset).
-- **Email Verification**: New users must verify their email address.
-- **Social Login**: Integrated with Google OAuth for easy sign-in.
-- **CRUD Operations**: Full management of Books, Authors, and Categories.
-- **Database Migrations**: Uses Alembic to manage database schema changes.
-- **Modern Frontend**: A responsive and interactive UI built with React, React Router, and Bootstrap.
+### 🔐 Xác thực & Người dùng
+- **Xác thực bảo mật**: Đăng nhập, đăng ký và làm mới token dựa trên JWT.
+- **Đăng nhập mạng xã hội**: Tích hợp OAuth2 (Google) qua `social_auth`.
+- **Quản lý người dùng**: Cập nhật hồ sơ, đặt lại mật khẩu và phân quyền truy cập.
+- **Xác minh Email**: Quy trình xác thực tài khoản tự động qua email.
 
-## 🚀 Tech Stack
+### 📚 Quản lý Thư viện
+- **Sách**: Các thao tác CRUD (Thêm, Đọc, Sửa, Xóa) với hỗ trợ ảnh bìa và siêu dữ liệu.
+- **Tác giả**: Quản lý hồ sơ tác giả và liên kết với các đầu sách.
+- **Danh mục**: Tổ chức nội dung theo hệ thống danh mục linh hoạt.
 
-- **Backend**:
-  - Python 3.12+
-  - FastAPI
-  - SQLModel (for data modeling and ORM)
-  - SQLAlchemy
-  - Alembic (for database migrations)
-  - MySQL (with `aiomysql`)
-  - `python-jose` for JWT authentication
-  - `fastapi-mail` for sending emails
-- **Frontend**:
-  - React 19
-  - Vite
-  - TypeScript
-  - Axios (for API requests)
-  - React Router
-  - Bootstrap & React-Bootstrap
-- **Development**:
-  - `uvicorn` for serving the FastAPI app
-  - `npm` for frontend dependency management
+### 📝 Hệ thống Thi cử (Examination)
+- **Kỳ thi (Exams)**: Tạo và quản lý các kỳ thi với cấu hình tùy chỉnh.
+- **Ngân hàng câu hỏi**: Kho lưu trữ câu hỏi để tái sử dụng cho nhiều đề thi khác nhau.
+- **Đề thi (Exam Papers)**: Tạo các đề thi cụ thể từ cấu trúc kỳ thi.
+- **Phần thi (Sections)**: Chia đề thi thành các phần logic (ví dụ: Reading, Listening).
 
-## Project Structure
+### 🛠 Điểm nhấn kỹ thuật
+- **Cơ sở dữ liệu**: Sử dụng **MongoDB** (NoSQL) để lưu trữ tài liệu linh hoạt và hiệu suất cao.
+- **Tác vụ nền**: Sử dụng **Celery** & **Redis** để xử lý các công việc bất đồng bộ (gửi email, xử lý dữ liệu nặng).
+- **Giới hạn lưu lượng (Rate Limiting)**: Bảo vệ API khỏi các cuộc tấn công spam bằng `slowapi`.
 
-```
-.
-├── 📄 .gitignore
-├── 📄 README.md
-├── 📁 frontend/         # React/Vite frontend application
-└── 📁 library_api/      # Python/FastAPI backend application
-```
+## 🚀 Công nghệ sử dụng
 
----
+- **Framework chính**: [FastAPI](https://fastapi.tiangolo.com/)
+- **Ngôn ngữ**: Python 3.12+
+- **Cơ sở dữ liệu**: MongoDB (thông qua driver `Motor`)
+- **Quản lý tác vụ**: Celery
+- **Message Broker**: Redis
+- **Xác thực**: Python-JOSE, Authlib
+- **Kiểm tra dữ liệu**: Pydantic
 
-## 📋 Prerequisites
+## 📋 Yêu cầu hệ thống
 
-Before you begin, ensure you have the following installed on your system:
-
-- [Node.js](https://nodejs.org/) (v20.x or higher recommended)
-- [Python](https://www.python.org/downloads/) (v3.12 or higher)
+- [Python](https://www.python.org/downloads/) (v3.12+)
+- [MongoDB](https://www.mongodb.com/try/download/community)
+- [Redis](https://redis.io/)
 - [Git](https://git-scm.com/)
-- A MySQL database server
 
----
+## ⚙️ Cài đặt & Thiết lập
 
-## ⚙️ Installation & Setup
-
-### 1. Clone the Repository
-
+### 1. Tải mã nguồn
 ```bash
-git clone <your-repository-url>
-cd <your-project-directory>
+git clone <your-repo-url>
+cd full_stack/library_api
 ```
 
-### 2. Backend Setup (`library_api`)
+### 2. Tạo môi trường ảo
+```bash
+# Windows
+python -m venv venv
+.\venv\Scripts\activate
 
-Follow these steps to get the backend server running.
+# macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
+```
 
-1.  **Navigate to the backend directory:**
-    ```bash
-    cd library_api
-    ```
+### 3. Cài đặt thư viện
+```bash
+pip install -r requirements.txt
+```
 
-2.  **Create and activate a virtual environment:**
-    ```bash
-    # Create the environment
-    python -m venv venv
+### 4. Cấu hình biến môi trường
+Tạo file `.env` từ file mẫu:
+```bash
+# Windows
+copy .env.example .env
+# macOS/Linux
+cp .env.example .env
+```
+*Mở file `.env` và cấu hình các thông tin kết nối MongoDB, Redis, và tài khoản SMTP gửi email.*
 
-    # Activate it (Windows)
-    .\venv\Scripts\activate
+## ▶️ Khởi chạy ứng dụng
 
-    # Activate it (macOS/Linux)
-    source venv/bin/activate
-    ```
+### Chạy API Server
+```bash
+uvicorn app.main:app --reload
+```
+- **Tài liệu Swagger UI**: `http://127.0.0.1:8000/docs`
+- **Tài liệu ReDoc**: `http://127.0.0.1:8000/redoc`
 
-3.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+### Chạy Celery Worker (Bắt buộc để gửi email/tác vụ nền)
+```bash
+# Windows (Yêu cầu gevent hoặc tương đương)
+celery -A app.core.celery_app worker --loglevel=info --pool=solis
 
-4.  **Configure environment variables:**
-    -   Copy the example environment file:
-        ```bash
-        copy .env.example .env
-        ```
-    -   Open the `.env` file and update the variables with your own settings (database credentials, JWT secret, email provider details, and Google OAuth credentials).
-
-5.  **Run database migrations:**
-    -   Apply all pending migrations to create the database tables.
-    ```bash
-    alembic upgrade head
-    ```
-
-### 3. Frontend Setup (`frontend`)
-
-Follow these steps to get the frontend development server running.
-
-1.  **Navigate to the frontend directory:**
-    ```bash
-    # From the root directory
-    cd frontend
-    ```
-
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
-
-3.  **Configure environment variables (Optional):**
-    -   The frontend connects to the API at `http://127.0.0.1:8000` by default. If your backend is running on a different address, create a `.env.local` file in the `frontend` directory and add the following line:
-        ```
-        VITE_API_BASE_URL=http://your-api-address
-        ```
-
----
-
-## ▶️ Running the Application
-
-You need to run both the backend and frontend servers simultaneously in two separate terminals.
-
-1.  **Run the Backend Server:**
-    -   Make sure you are in the `library_api` directory with the virtual environment activated.
-    ```bash
-    uvicorn app.main:app --reload
-    ```
-    -   The API will be available at `http://127.0.0.1:8000`.
-    -   API documentation (Swagger UI) is available at `http://127.0.0.1:8000/docs`.
-
-2.  **Run the Frontend Server:**
-    -   Make sure you are in the `frontend` directory.
-    ```bash
-    npm run dev
-    ```
-    -   The application will be accessible at `http://localhost:5173`.
-
----
+# Linux/macOS
+celery -A app.core.celery_app worker --loglevel=info
+```

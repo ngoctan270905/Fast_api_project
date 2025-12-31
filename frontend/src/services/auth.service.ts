@@ -1,3 +1,4 @@
+import api from '../lib/axios';
 import axios from 'axios';
 
 // Define the User type to match the AuthContext
@@ -16,12 +17,9 @@ interface User {
   token_type: string;
 }
 
-const AUTH_API_URL = 'http://localhost:8000/api/v1/auth/';
-const USER_API_URL = 'http://localhost:8000/api/v1/users/';
-
 class AuthService {
   async register(username: string, email: string, password: string): Promise<any> {
-    const response = await axios.post(AUTH_API_URL + 'register', {
+    const response = await api.post('/auth/register', {
       username,
       email,
       password,
@@ -30,21 +28,21 @@ class AuthService {
   }
 
   async verifyEmail(token: string): Promise<any> {
-    const response = await axios.post(AUTH_API_URL + 'verify-email', {
+    const response = await api.post('/auth/verify-email', {
       token,
     });
     return response.data;
   }
 
   async forgotPassword(email: string): Promise<any> {
-    const response = await axios.post(AUTH_API_URL + 'forgot-password', {
+    const response = await api.post('/auth/forgot-password', {
       email,
     });
     return response.data;
   }
 
   async resetPassword(token: string, new_password: string): Promise<any> {
-    const response = await axios.post(AUTH_API_URL + 'reset-password', {
+    const response = await api.post('/auth/reset-password', {
       token,
       new_password,
     });
@@ -52,7 +50,7 @@ class AuthService {
   }
   
   async getMe(): Promise<Omit<User, 'access_token' | 'token_type'>> {
-    const response = await axios.get(AUTH_API_URL + 'me');
+    const response = await api.get('/auth/me');
     return response.data;
   }
 
@@ -62,20 +60,19 @@ class AuthService {
     params.append('password', password);
 
     // 1. Get the token
-    const tokenResponse = await axios.post(AUTH_API_URL + 'login', params, {
+    const tokenResponse = await api.post('/auth/login', params, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
 
     const { access_token, token_type } = tokenResponse.data;
 
     if (access_token) {
-      // 2. Set auth header for the next request
-      axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-
-      // 3. Get user details
+      // The interceptor will now handle adding the token to subsequent requests
+      
+      // 2. Get user details
       const userDetails = await this.getMe();
 
-      // 4. Combine into a full user object
+      // 3. Combine into a full user object
       const user: User = {
         ...userDetails,
         access_token,
@@ -108,7 +105,7 @@ class AuthService {
   }
 
   async changePassword(old_password: string, new_password: string): Promise<any> {
-    const response = await axios.post(USER_API_URL + 'me/change-password', {
+    const response = await api.post('/users/me/change-password', {
       old_password,
       new_password,
     });
