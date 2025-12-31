@@ -7,6 +7,7 @@ import ForgotPasswordPage from '../pages/ForgotPasswordPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import ChangePasswordPage from '../pages/ChangePasswordPage'; // Import
 import AuthCallbackPage from '../pages/AuthCallbackPage'; // Import the new page
+import ExamPage from '../pages/ExamPage';
 import PrivateRoute from './PrivateRoute'; // Import
 
 function AppRouter() {
@@ -24,6 +25,7 @@ function AppRouter() {
       {/* Private Routes */}
       <Route element={<PrivateRoute />}>
         <Route path="/change-password" element={<ChangePasswordPage />} />
+        <Route path="/exams" element={<ExamPage />} />
         {/* Add other private routes here */}
       </Route>
     </Routes>
